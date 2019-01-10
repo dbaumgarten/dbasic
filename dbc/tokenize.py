@@ -28,8 +28,9 @@ class Tokenizer:
         self.input = inp
         self.tokens = []
         self.pos = 0
+        self.tokenize()
 
-    def newtokenize(self):
+    def tokenize(self):
         linenr = 1
         text = self.input
         while len(text) > 0:

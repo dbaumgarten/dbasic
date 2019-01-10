@@ -2,6 +2,8 @@
 
 import dbc.tokenize as tokenize
 import dbc.parse as parse
+from dbc.generate import GenerationError
+from dbc.formatasm import format
 import dbc.generateasm as generateasm
 import dbc.generatec as generatec
 
@@ -40,28 +42,33 @@ def main():
         if args.debug:
             parse.debug = True
 
-        t = tokenize.Tokenizer(f.read())
-        t.newtokenize()
+        tokenizer = tokenize.Tokenizer(f.read())
         try:
-            tree = parse.parse(t)
+            syntaxtree = parse.parse(tokenizer)
         except parse.ParserError as e:
             print(e)
             sys.exit(1)
 
         if args.type == "c":
-            result = generatec.generateCode(tree)
+            generator = generatec.CGenerator()
         if args.type == "asm" or args.type == "binary":
-            result = generateasm.generateCode(tree)
+            generator = generateasm.ASMGenerator()
+
+        try:
+            code = generator.generate(syntaxtree)
+            if args.type == "asm":
+                code = format(code)
+        except GenerationError as e:
+            print(e)
+            sys.exit(1)
+
         if args.type == "c" or args.type == "asm":
             with open(args.outfile, "w") as of:
-                of.write(result)
+                of.write(code)
             return
 
         if args.type == "binary":
             cmds = ["gcc", "-o", args.outfile, "-xassembler", "-"]
             if args.gccargs:
                 cmds = cmds + args.gccargs.split(" ")
-            subprocess.run(cmds, input=result.encode())
-
-
-main()
+            subprocess.run(cmds, input=code.encode())

@@ -1,5 +1,5 @@
 .vscode
 examples/*
-!examples/*.*
+!examples/*.basic
 __pycache__
 *.egg-info
