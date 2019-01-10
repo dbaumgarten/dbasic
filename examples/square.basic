@@ -1,0 +1,18 @@
+PRINT "Enter wanted width:"
+INPUT count
+PRINT "Printing shape of width: " , count,"\n"
+LET y = 0
+WHILE y < count DO
+    LET x = 0 
+    WHILE x < count DO
+        IF x == y | x == 0 | y == 0 | y == count - 1 | x == count - 1 | x + y == count - 1 THEN
+            PRINT "XX"
+        ELSE
+            PRINT "**"
+        END
+        LET x=x+1
+    END
+    PRINT "\n"
+    LET y=y+1
+END
+RETURN 0

@@ -1,0 +1,16 @@
+PRINT "Please enter your age:"
+INPUT age
+PRINT "Your are ",age," years old?\n"
+IF age < 0 THEN
+PRINT "Dont be silly...\n"
+RETURN 1
+END
+IF age < 1 THEN
+PRINT "Just born and already using a computer. Sure thing...\n"
+RETURN 1
+END
+IF age > 23 THEN
+PRINT "Fuck! Your old as hell!\n"
+ELSE
+PRINT "Astonishingly young!!!\n"
+END
