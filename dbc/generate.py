@@ -15,7 +15,6 @@ class Generator():
         self.variables = dict()
         self.funcmapping = {
             ast.Programm: self.generateProgramm,
-            ast.Print: self.generatePrint,
             ast.Unary: self.generateUnary,
             ast.Binary: self.generateBinary,
             ast.Var: self.generateVar,
@@ -24,10 +23,8 @@ class Generator():
             ast.Assign: self.generateAssign,
             ast.If: self.generateIf,
             ast.While: self.generateWhile,
-            ast.Input: self.generateInput,
             ast.Return: self.generateReturn,
             ast.Call: self.generateCall,
-            ast.ExpressionStatement: self.generateExpressionStatement,
             ast.FuncDef: self.generateFuncdef,
             ast.GlobalDef: self.generateGlobaldef,
             ast.LocalDef: self.generateLocaldef,
@@ -40,9 +37,6 @@ class Generator():
         return generator(node)
 
     def generateProgramm(self, node):
-        raise GenerationError("AST-Type not implemented", node)
-
-    def generatePrint(self, node):
         raise GenerationError("AST-Type not implemented", node)
 
     def generateUnary(self, node):
@@ -69,16 +63,10 @@ class Generator():
     def generateWhile(self, node):
         raise GenerationError("AST-Type not implemented", node)
 
-    def generateInput(self, node):
-        raise GenerationError("AST-Type not implemented", node)
-
     def generateReturn(self, node):
         raise GenerationError("AST-Type not implemented", node)
 
     def generateCall(self, node):
-        raise GenerationError("AST-Type not implemented", node)
-
-    def generateExpressionStatement(self, node):
         raise GenerationError("AST-Type not implemented", node)
 
     def generateFuncdef(self, node):

@@ -1,18 +1,18 @@
 GLOBAL INT pixelcount = 0
 FUNC pixel(x,y,count)
     IF x == y | x == 0 | y == 0 | y == count - 1 | x == count - 1 | x + y == count - 1 THEN
-        PRINT "XX"
+        print("XX")
     ELSE
-        PRINT "**"
+        print("**")
     END
     pixelcount = pixelcount+1
     RETURN 0
 END
 FUNC main()
-    puts("Hi\n")
-    PRINT "Enter wanted width:"
-    INPUT count
-    PRINT "Printing shape of width: " , count,"\n"
+    puts("Hi")
+    print("Enter wanted width:")
+    INT count = input()
+    print("Printing shape of width: %d\n" , count)
     INT y = 0
     WHILE y < count DO
         INT x = 0 
@@ -20,9 +20,9 @@ FUNC main()
             pixel(x,y,count)
             x=x+1
         END
-        PRINT "\n"
+        print("\n")
         y=y+1
     END
-    PRINT "\nPrinted pixel:", pixelcount, "\n"
+    print("\nPrinted pixel:%d\n", pixelcount)
     RETURN 0
 END

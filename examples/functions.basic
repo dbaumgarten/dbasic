@@ -3,11 +3,11 @@ FUNC test(a,b,c)
     RETURN a+b+c+myconst
 END
 FUNC main()
-    PRINT "Hallo\n"
+    print("Hallo\n")
     INT res = test(1,2,3)
-    PRINT res, "\n"
+    print("%d\n",res)
     myconst = 20
     INT other = test(1,2,3)
-    PRINT other, "\n"
+    print("%d\n",other)
     RETURN res
 END

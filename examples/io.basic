@@ -1,0 +1,5 @@
+FUNC main()
+    INT x = input()
+    print("%d\n",x)
+    RETURN 0
+END

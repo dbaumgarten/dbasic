@@ -5,11 +5,6 @@ class Programm:
         self.parts = parts
 
 
-class Print:
-    def __init__(self, expressions):
-        self.expressions = expressions
-
-
 class Unary:
     def __init__(self, op, val):
         self.op = op
@@ -57,25 +52,17 @@ class While:
         self.statements = statements
 
 
-class Input:
-    def __init__(self, name):
-        self.name = name
-
-
 class Return:
     def __init__(self, expression):
         self.expression = expression
 
 
 class Call:
-    def __init__(self, name, args):
+    def __init__(self, name, args, isStatement=False):
         self.name = name
         self.args = args
-
-
-class ExpressionStatement:
-    def __init__(self, exp):
-        self.exp = exp
+        # This call was a stand-alone statement (and not part of an expression). The C-generator needs to know this to append a ';'
+        self.isStatement = isStatement
 
 
 class FuncDef:

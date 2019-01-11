@@ -1,12 +1,12 @@
 FUNC main()
-    PRINT "How many?:"
-    INPUT dest
+    print("How many?:")
+    INT dest = input()
     INT x = 0
     WHILE x < dest DO
-        PRINT fib(x), ","
+        print("%d,",fib(x))
         x = x+1
     END
-    PRINT "\n"
+    print("\n")
     RETURN 0
 END
 

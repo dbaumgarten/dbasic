@@ -18,10 +18,11 @@ class CGenerator(Generator):
                 # include <stdio.h>
                 # include <string.h>
                 # include <stdlib.h>
+                # include <stdarg.h>
                 char inputbuffer[60];
                 """)
 
-        code = ""
+        code = self.builtinFunctions()
         for func in node.parts:
             code += self.generate(func)
 
@@ -38,15 +39,6 @@ class CGenerator(Generator):
         for statement in node.statements:
             code += self.generate(statement)
         code += "}\n\n"
-        return code
-
-    def generatePrint(self, node):
-        code = ""
-        for exp in node.expressions:
-            if type(exp) == ast.Str:
-                code += "printf(\"%s\",\""+exp.value+"\");\n"
-            else:
-                code += "printf(\"%i\","+self.generate(exp)+");\n"
         return code
 
     def generateBinary(self, exp):
@@ -86,15 +78,6 @@ class CGenerator(Generator):
         code += "}\n"
         return code
 
-    def generateInput(self, st):
-        code = ""
-        if not st.name in self.variables:
-            code += "int {};\n".format(st.name)
-            self.variables[st.name] = True
-        code += "fgets(inputbuffer,60,stdin);if(inputbuffer[strlen(inputbuffer) - 1] == '\\n'){inputbuffer[strlen(inputbuffer) - 1] = '\\0';}\n"
-        code += "{} = atoi(inputbuffer);\n".format(st.name)
-        return code
-
     def generateReturn(self, node):
         return "return {};\n".format(self.generate(node.expression))
 
@@ -105,10 +88,9 @@ class CGenerator(Generator):
             code += ","
         code = code.rstrip(",")
         code += ")"
+        if node.isStatement:
+            code += ";\n"
         return code
-
-    def generateExpressionStatement(self, node):
-        return self.generate(node.exp)+";\n"
 
     def generateStr(self, node):
         return "\""+node.value+"\""
@@ -119,3 +101,24 @@ class CGenerator(Generator):
 
     def generateLocaldef(self, node):
         return "int {} = {};\n".format(node.name, self.generate(node.value))
+
+    def builtinFunctions(self):
+        print = dedent("""\
+        void print(const char *format, ...){
+            va_list args;
+            va_start(args, format);
+            vprintf(format, args);
+            va_end(args);
+            fflush(stdout);
+        }
+        """)
+        input = dedent("""\
+        int input(void){
+            fgets(inputbuffer,60,stdin);
+            if(inputbuffer[strlen(inputbuffer) - 1] == '\\n'){
+                inputbuffer[strlen(inputbuffer) - 1] = '\\0';
+            }
+            return atoi(inputbuffer);
+        }
+        """)
+        return print+input

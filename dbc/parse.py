@@ -95,8 +95,9 @@ def funcdef(t):
 
     body = block(t)
 
-    if t.next().type != "END":
-        raise ParserError(id.line, "Unknown statement type")
+    expectedend = t.next()
+    if expectedend.type != "END":
+        raise ParserError(id.line, "Unknown statement type", expectedend)
 
     return ast.FuncDef(id.value, args, body)
 
@@ -138,10 +139,12 @@ def localdef(t):
 
 @LogParsing
 def statement(t):
-    st = printstatement(t) or ifstatement(
-        t) or assignstatement(t) or whilestatement(t) or inputstatement(t) or returnstatement(t) or funccall(t) or localdef(t)
+    st = ifstatement(t) or assignstatement(t) or whilestatement(
+        t) or returnstatement(t) or funccall(t) or localdef(t)
     if not st:
         return None
+    if type(st) == ast.Call:
+        st.isStatement = True
     nl = t.next()
     if nl.type != "NL":
         raise ParserError(nl.line, "Missing newline")
@@ -158,18 +161,6 @@ def returnstatement(t):
     if not exp:
         raise ParserError(tok.line, "Expected expression after return value")
     return ast.Return(exp)
-
-
-@LogParsing
-def printstatement(t):
-    tok = t.peek()
-    if tok.type != "PRINT":
-        return None
-    t.next()
-    expl = exprlist(t)
-    if expl:
-        return ast.Print(expl)
-    raise ParserError(tok.line, "Expression list missing after PRINT.")
 
 
 @LogParsing
@@ -259,18 +250,6 @@ def funccall(t):
     if endtoken.type != ")":
         raise ParserError(id.line, "Missing ) in function call.")
     return ast.Call(id.value, args)
-
-
-@LogParsing
-def inputstatement(t):
-    tok = t.peek()
-    if tok.type != "INPUT":
-        return None
-    t.next()
-    vartok = t.next()
-    if vartok.type != "ID":
-        raise ParserError(vartok.line, "No variable name after INPUT")
-    return ast.Input(vartok.value)
 
 
 @LogParsing

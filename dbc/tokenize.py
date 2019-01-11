@@ -1,6 +1,6 @@
 import re
 
-keywords = ["PRINT", "IF", "THEN", "INPUT", "RETURN",
+keywords = ["IF", "THEN", "RETURN",
             "END", "WHILE", "DO", "ELSE", "FUNC", "GLOBAL"]
 symbols = [",", "(", ")", "+", "-", "*", "/", "==",
            "=", ">=", "<=", ">", "<", "!=", "&", "|"]

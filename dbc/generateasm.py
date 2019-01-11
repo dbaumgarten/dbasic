@@ -28,6 +28,9 @@ class ASMGenerator(Generator):
         instructions = ""
         for statement in node.parts:
             instructions += self.generate(statement)
+
+        instructions += self.builtinFunctions()
+
         variables = self.globalVariables()
         return code.format(instructions, variables)
 
@@ -61,23 +64,12 @@ class ASMGenerator(Generator):
                 raise GenerationError(
                     "To many arguments for function: "+node.name, node)
             code += self.generate(arg)
+            code += "push %{}\n".format(self.argorder[argnr])
             code += "mov %rax, %{}\n".format(self.argorder[argnr])
             argnr += 1
         code += "call {}\n".format(node.name)
-        return code
-
-    def generatePrint(self, node):
-        code = ""
-        for expression in node.expressions:
-            if type(expression) == ast.Str:
-                value = expression.value
-                name = self.getlabel("str")
-                self.constants[name] = value
-                code += self.generateSyscall(1, "$1", "$" +
-                                             name, "$" + str(len(value)))
-            else:
-                code += self.generate(expression)
-                code += self.printint("%rax")
+        for i in range(argnr, 0, -1):
+            code += "pop %{}\n".format(self.argorder[i-1])
         return code
 
     def generateBinary(self, exp):
@@ -176,22 +168,10 @@ class ASMGenerator(Generator):
         code += endlabel+":\n"
         return code
 
-    def generateInput(self, node):
-        code = ""
-        code += self.generateSyscall(0, "$0", "$inputbuf", "$127")
-        code += "mov $inputbuf, %rdi\n"
-        code += "call atoi\n"
-        varoffset = self.addLocalVar(node.name)
-        code += "mov %rax, -{}(%rbp)\n".format(varoffset)
-        return code
-
     def generateReturn(self, node):
         code = self.generate(node.expression)
         code += "leave\nret\n"
         return code
-
-    def generateExpressionStatement(self, node):
-        return self.generate(node.exp)
 
     def generateStr(self, node):
         value = node.value
@@ -208,16 +188,6 @@ class ASMGenerator(Generator):
         return self.generateAssign(node)
 
     # ---- Start of x64 specific helper functions
-
-    def printint(self, value):
-        return dedent("""\
-            mov {}, %rsi
-            mov $intformat, %rdi
-            mov $0, %rax
-            call printf
-            movq stdout(%rip), %rdi
-            call fflush
-            """).format(value)
 
     def getlabel(self, pfx, glob=False):
         self.labelcounter += 1
@@ -245,7 +215,6 @@ class ASMGenerator(Generator):
             code += "{}:\n.quad {}\n\n".format(k, v)
 
         code += "inputbuf:\n.skip 128\n\n"
-        code += "intformat:\n.string \"%d\""
         return code
 
     def addLocalVar(self, name):
@@ -254,3 +223,17 @@ class ASMGenerator(Generator):
         offset = (len(self.localvars)+1)*8
         self.localvars[name] = offset
         return offset
+
+    def builtinFunctions(self):
+        input = "\n\ninput:\n"
+        input += self.generateSyscall(0, "$0", "$inputbuf", "$127")
+        input += "mov $inputbuf, %rdi\n"
+        input += "call atoi\n"
+        input += "ret\n\n\n"
+        print = "\n\nprint:\n"
+        print += "mov $0, %rax\n"
+        print += "call printf\n"
+        print += "movq stdout(%rip), %rdi\n"
+        print += "call fflush\n"
+        print += "ret\n\n"
+        return input+print
