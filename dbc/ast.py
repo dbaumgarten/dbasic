@@ -83,3 +83,15 @@ class FuncDef:
         self.name = name
         self.args = args
         self.statements = statements
+
+
+class GlobalDef:
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+
+class LocalDef:
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value

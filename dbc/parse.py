@@ -47,13 +47,16 @@ def parse(t):
     statements = []
 
     while t.peek():
-        fd = funcdef(t)
+        fd = funcdef(t) or globaldef(t)
         if fd:
             statements.append(fd)
+            if t.next().type != "NL":
+                raise ParserError(
+                    fd.line, "Expected newline after END of definition")
             continue
 
         raise ParserError(
-            t.peek().line, "Unknown statement-type: '{}'".format(t.peek().value))
+            t.peek().line, "Unknown statement-type: '{}'".format(t.peek()))
 
     return ast.Programm(statements)
 
@@ -93,40 +96,56 @@ def funcdef(t):
     body = block(t)
 
     if t.next().type != "END":
-        raise ParserError(id.line, "Expected END at the end of function body")
-
-    if t.next().type != "NL":
-        raise ParserError(
-            id.line, "Expected newline after END of function body")
+        raise ParserError(id.line, "Unknown statement type")
 
     return ast.FuncDef(id.value, args, body)
 
 
 @LogParsing
+def globaldef(t):
+    tok = t.peek()
+    if tok.type != "GLOBAL":
+        return None
+    t.next()
+    ldef = localdef(t)
+    if not ldef:
+        raise ParserError(
+            tok.line, "Expected variable declaration after GLOBAL")
+    if type(ldef.value) != ast.Const:
+        raise ParserError(
+            tok.line, "Global variables can only be initialize using constants")
+    return ast.GlobalDef(ldef.name, ldef.value.value)
+
+
+@LogParsing
+def localdef(t):
+    tok = t.peek()
+    if tok.type != "TYPE":
+        return None
+    t.next()
+    id = t.next()
+    if id.type != "ID":
+        raise ParserError(
+            id.line, "Expected identifyer in variable declaration.")
+    if t.next().type != "=":
+        raise ParserError(id.line, "Missing '=' in variable declaration")
+    val = expression(t)
+    if not val:
+        raise ParserError(
+            id.line, "Missing expression for value of declared variable.")
+    return ast.LocalDef(id.value, val)
+
+
+@LogParsing
 def statement(t):
     st = printstatement(t) or ifstatement(
-        t) or letstatement(t) or whilestatement(t) or inputstatement(t) or returnstatement(t) or expressionstatement(t)
+        t) or assignstatement(t) or whilestatement(t) or inputstatement(t) or returnstatement(t) or funccall(t) or localdef(t)
     if not st:
         return None
     nl = t.next()
     if nl.type != "NL":
         raise ParserError(nl.line, "Missing newline")
     return st
-
-
-@LogParsing
-def funccallargs(t):
-    tok = t.peek()
-    if tok.type != "(":
-        return None
-    t.next()
-    args = exprlist(t)
-    if not args:
-        args = []
-    endtoken = t.next()
-    if endtoken.type != ")":
-        raise ParserError(tok.line, "Missing ) in function call.")
-    return args
 
 
 @LogParsing
@@ -215,20 +234,31 @@ def whilestatement(t):
 
 
 @LogParsing
-def letstatement(t):
-    tok = t.peek()
-    if tok.type != "LET":
+def assignstatement(t):
+    if t.peek().type != "ID" or t.peek(1).type != "=":
         return None
-    t.next()
     vartok = t.next()
-    if vartok.type != "ID":
-        raise ParserError(vartok.line, "No variable name after LET")
-    if t.next().type != "=":
-        raise ParserError(vartok.line, "No '=' after LET:")
+    t.next()
     expr = expression(t)
     if not expr:
-        raise ParserError(vartok.line, "No expression after LET")
+        raise ParserError(
+            vartok.line, "No expression after assignment operator")
     return ast.Assign(vartok.value, expr)
+
+
+@LogParsing
+def funccall(t):
+    if t.peek().type != "ID" or t.peek(1).type != "(":
+        return None
+    id = t.next()
+    t.next()
+    args = exprlist(t)
+    if not args:
+        args = []
+    endtoken = t.next()
+    if endtoken.type != ")":
+        raise ParserError(id.line, "Missing ) in function call.")
+    return ast.Call(id.value, args)
 
 
 @LogParsing
@@ -241,14 +271,6 @@ def inputstatement(t):
     if vartok.type != "ID":
         raise ParserError(vartok.line, "No variable name after INPUT")
     return ast.Input(vartok.value)
-
-
-@LogParsing
-def expressionstatement(t):
-    exp = expression(t)
-    if exp:
-        return ast.ExpressionStatement(exp)
-    return None
 
 
 @LogParsing
@@ -365,9 +387,9 @@ def term(t):
 
 @LogParsing
 def factor(t):
-    idexp = identifyerexpression(t)
-    if idexp:
-        return idexp
+    call = funccall(t)
+    if call:
+        return call
     tok = t.peek()
     if tok.type == "CONST":
         t.next()
@@ -378,19 +400,8 @@ def factor(t):
         if not exp or t.next().type != ")":
             return None
         return exp
+    elif tok.type == "ID":
+        t.next()
+        return ast.Var(tok.value)
     else:
         return None
-
-
-@LogParsing
-def identifyerexpression(t):
-    tok = t.peek()
-    if tok.type != "ID":
-        return None
-    id = t.next()
-
-    funcargs = funccallargs(t)
-    if funcargs:
-        return ast.Call(id.value, funcargs)
-
-    return ast.Var(id.value)

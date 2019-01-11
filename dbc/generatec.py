@@ -9,21 +9,27 @@ from dbc.generate import Generator, GenerationError
 
 class CGenerator(Generator):
     def __init__(self):
-        self.variables = dict()
+        self.localvars = dict()
+        self.globalvars = dict()
         super().__init__()
 
     def generateProgramm(self, node):
-        code = dedent("""\
+        preamble = dedent("""\
                 # include <stdio.h>
                 # include <string.h>
                 # include <stdlib.h>
                 char inputbuffer[60];
                 """)
 
+        code = ""
         for func in node.parts:
             code += self.generate(func)
-        code += "\n\n"
-        return code
+
+        globalvarcode = ""
+        for k, v in self.globalvars.items():
+            globalvarcode += "int {} = {};\n".format(k, v)
+
+        return preamble+globalvarcode+code
 
     def generateFuncdef(self, node):
         code = "int " + node.name + "("
@@ -54,9 +60,9 @@ class CGenerator(Generator):
 
     def generateAssign(self, node):
         code = ""
-        if not node.name in self.variables:
-            code += "int {};\n".format(node.name)
-            self.variables[node.name] = True
+        if not node.name in self.localvars and not node.name in self.globalvars:
+            raise GenerationError(
+                "Referenced variable {} before assignment.".format(node.name), node)
         code += "{} = {};\n".format(node.name, self.generate(node.value))
         return code
 
@@ -106,3 +112,10 @@ class CGenerator(Generator):
 
     def generateStr(self, node):
         return "\""+node.value+"\""
+
+    def generateGlobaldef(self, node):
+        self.globalvars[node.name] = node.value
+        return ""
+
+    def generateLocaldef(self, node):
+        return "int {} = {};\n".format(node.name, self.generate(node.value))

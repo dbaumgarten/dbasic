@@ -1,9 +1,10 @@
 import re
 
-keywords = ["PRINT", "IF", "THEN", "INPUT",
-            "LET", "RETURN", "END", "WHILE", "DO", "ELSE", "FUNC"]
+keywords = ["PRINT", "IF", "THEN", "INPUT", "RETURN",
+            "END", "WHILE", "DO", "ELSE", "FUNC", "GLOBAL"]
 symbols = [",", "(", ")", "+", "-", "*", "/", "==",
            "=", ">=", "<=", ">", "<", "!=", "&", "|"]
+types = ["INT"]
 
 idre = re.compile("^[a-zA-Z]+")
 constre = re.compile("^[0-9]+")
@@ -51,6 +52,14 @@ class Tokenizer:
                     break
             if matched:
                 continue
+            for t in types:
+                if text.startswith(t):
+                    self.tokens.append(Token("TYPE", t, linenr))
+                    text = text[len(t):]
+                    matched = True
+                    break
+            if matched:
+                continue
             matcher = idre.match(text)
             if matcher:
                 self.tokens.append(Token("ID", matcher.group(0), linenr))
@@ -90,8 +99,8 @@ class Tokenizer:
             self.pos += 1
         return t
 
-    def peek(self):
-        if len(self.tokens) > self.pos:
-            return self.tokens[self.pos]
+    def peek(self, ahead=0):
+        if len(self.tokens) > (self.pos+ahead):
+            return self.tokens[self.pos+ahead]
         else:
             return None

@@ -37,7 +37,6 @@ For additional options (outputting c/asm, input-files, output-files etc.) see ``
 
 ## Limitations
 As the language and the compiler needed to stay quite simple there are some limitations:
-- No global variables
 - All variables are of type signed int (but the PRINT command can still output string constants)
 - Currently no stdlib
 - The generated assembly-code is 100% unoptimized.

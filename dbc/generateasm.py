@@ -125,18 +125,23 @@ class ASMGenerator(Generator):
         return code
 
     def generateVar(self, node):
-        if not node.name in self.localvars:
+        if node.name in self.localvars:
+            return "mov -{}(%rbp), %rax\n".format(self.localvars[node.name])
+        elif node.name in self.globalvars:
+            return "mov {}, %rax\n".format(node.name)
+        else:
             raise GenerationError(
                 "Referenced variable {} before assignment.".format(node.name), node)
-        return "mov -{}(%rbp), %rax\n".format(self.localvars[node.name])
 
     def generateConst(self, node):
         return "mov ${}, %rax\n".format(node.value)
 
     def generateAssign(self, node):
-        varoffset = self.addLocalVar(node.name)
         code = self.generate(node.value)
-        code += "mov %rax, -{}(%rbp)\n".format(varoffset)
+        if node.name in self.localvars:
+            code += "mov %rax, -{}(%rbp)\n".format(self.localvars[node.name])
+        elif node.name in self.globalvars:
+            code += "mov %rax, {}\n".format(node.name)
         return code
 
     def generateIf(self, node):
@@ -194,6 +199,14 @@ class ASMGenerator(Generator):
         self.constants[name] = value
         return "mov ${}, %rax\n".format(name)
 
+    def generateGlobaldef(self, node):
+        self.globalvars[node.name] = node.value
+        return ""
+
+    def generateLocaldef(self, node):
+        self.addLocalVar(node.name)
+        return self.generateAssign(node)
+
     # ---- Start of x64 specific helper functions
 
     def printint(self, value):
@@ -229,7 +242,7 @@ class ASMGenerator(Generator):
             code += "{}:\n.string \"{}\"\n\n".format(k, v)
 
         for k, v in self.globalvars.items():
-            code += "{}:\n.quad 0x00\n\n".format(k)
+            code += "{}:\n.quad {}\n\n".format(k, v)
 
         code += "inputbuf:\n.skip 128\n\n"
         code += "intformat:\n.string \"%d\""

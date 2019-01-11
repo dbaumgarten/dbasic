@@ -1,0 +1,19 @@
+FUNC main()
+    PRINT "How many?:"
+    INPUT dest
+    INT x = 0
+    WHILE x < dest DO
+        PRINT fib(x), ","
+        x = x+1
+    END
+    PRINT "\n"
+    RETURN 0
+END
+
+FUNC fib(n)
+    IF n < 2 THEN
+        RETURN 1
+    ELSE
+        RETURN fib(n-1)+fib(n-2)
+    END
+END
