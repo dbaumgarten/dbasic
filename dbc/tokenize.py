@@ -1,7 +1,7 @@
 import re
 
 keywords = ["PRINT", "IF", "THEN", "INPUT",
-            "LET", "RETURN", "END", "WHILE", "DO", "ELSE"]
+            "LET", "RETURN", "END", "WHILE", "DO", "ELSE", "FUNC"]
 symbols = [",", "(", ")", "+", "-", "*", "/", "==",
            "=", ">=", "<=", ">", "<", "!=", "&", "|"]
 

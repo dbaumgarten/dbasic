@@ -18,12 +18,20 @@ class CGenerator(Generator):
                 # include <string.h>
                 # include <stdlib.h>
                 char inputbuffer[60];
-                int main(){
                 """)
 
+        for func in node.parts:
+            code += self.generate(func)
+        code += "\n\n"
+        return code
+
+    def generateFuncdef(self, node):
+        code = "int " + node.name + "("
+        code += ",".join([("int "+x) for x in node.args])
+        code += "){\n"
         for statement in node.statements:
             code += self.generate(statement)
-        code += "}"
+        code += "}\n\n"
         return code
 
     def generatePrint(self, node):
@@ -82,4 +90,19 @@ class CGenerator(Generator):
         return code
 
     def generateReturn(self, node):
-        return "return {};".format(self.generate(node.expression))
+        return "return {};\n".format(self.generate(node.expression))
+
+    def generateCall(self, node):
+        code = node.name + "("
+        for arg in node.args:
+            code += self.generate(arg)
+            code += ","
+        code = code.rstrip(",")
+        code += ")"
+        return code
+
+    def generateExpressionStatement(self, node):
+        return self.generate(node.exp)+";\n"
+
+    def generateStr(self, node):
+        return "\""+node.value+"\""

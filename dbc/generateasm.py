@@ -7,25 +7,11 @@ from dbc.generate import Generator, GenerationError
 class ASMGenerator(Generator):
     def __init__(self):
         self.labelcounter = 0
-        self.variables = dict()
+        self.argorder = ["RDI", "RSI", "RDX", "RCX", "R8", "R9"]
+        self.localvars = dict()
+        self.globalvars = dict()
+        self.constants = dict()
         super().__init__()
-
-    def getlabel(self, pfx, glob=False):
-        self.labelcounter += 1
-        l = pfx+str(self.labelcounter)
-        if not glob:
-            l = ".L"+l
-        return l
-
-    def generateSyscall(self, call, *args):
-        regs = ["rdi", "rsi", "rdx", "r10", "r8", "r9"]
-        code = "mov ${}, %eax\n".format(call)
-        i = 0
-        for arg in args:
-            code += "mov {}, %{}\n".format(arg, regs[i])
-            i += 1
-        code += "syscall\n"
-        return code
 
     def generateProgramm(self, node):
         code = dedent("""\
@@ -33,31 +19,51 @@ class ASMGenerator(Generator):
             .text
             .globl	main
             .type	main, @function
-
         
-        main:
         {}
 
-
         .data
-
         {}
         """)
         instructions = ""
-        for statement in node.statements:
+        for statement in node.parts:
             instructions += self.generate(statement)
-        variables = self.generateGlobalVariables()
+        variables = self.globalVariables()
         return code.format(instructions, variables)
 
-    def generateGlobalVariables(self):
-        code = ""
-        for k, v in self.variables.items():
-            if isinstance(v, str):
-                code += "{}:\n.string \"{}\"\n\n".format(k, v)
-            else:
-                code += "{}:\n.quad 0x00\n\n".format(k)
+    def generateFuncdef(self, node):
+        for arg in node.args:
+            self.addLocalVar(arg)
 
-        code += "inputbuf:\n.skip 128\n\n"
+        code = ""
+        for statement in node.statements:
+            code += self.generate(statement)
+
+        stacksize = len(self.localvars)*8
+        preamble = node.name + ":\n"
+        preamble += "push %rbp\n"
+        preamble += "mov %rsp, %rbp\n"
+        preamble += "sub ${}, %rsp\n".format(stacksize)
+        argnumber = 0
+        for arg in node.args:
+            preamble += "mov %{}, -{}(%rbp)\n".format(
+                self.argorder[argnumber], self.localvars[arg])
+            argnumber += 1
+
+        self.localvars = dict()
+        return preamble+code+"\n\n"
+
+    def generateCall(self, node):
+        code = ""
+        argnr = 0
+        for arg in node.args:
+            if argnr >= len(self.argorder):
+                raise GenerationError(
+                    "To many arguments for function: "+node.name, node)
+            code += self.generate(arg)
+            code += "mov %rax, %{}\n".format(self.argorder[argnr])
+            argnr += 1
+        code += "call {}\n".format(node.name)
         return code
 
     def generatePrint(self, node):
@@ -66,7 +72,7 @@ class ASMGenerator(Generator):
             if type(expression) == ast.Str:
                 value = expression.value
                 name = self.getlabel("str")
-                self.variables[name] = value
+                self.constants[name] = value
                 code += self.generateSyscall(1, "$1", "$" +
                                              name, "$" + str(len(value)))
             else:
@@ -119,19 +125,18 @@ class ASMGenerator(Generator):
         return code
 
     def generateVar(self, node):
-        if not node.name in self.variables:
+        if not node.name in self.localvars:
             raise GenerationError(
                 "Referenced variable {} before assignment.".format(node.name), node)
-        return "mov {}, %rax\n".format(node.name)
+        return "mov -{}(%rbp), %rax\n".format(self.localvars[node.name])
 
     def generateConst(self, node):
         return "mov ${}, %rax\n".format(node.value)
 
     def generateAssign(self, node):
-        code = ""
-        self.variables[node.name] = True
-        code += self.generate(node.value)
-        code += "mov %rax, {}\n".format(node.name)
+        varoffset = self.addLocalVar(node.name)
+        code = self.generate(node.value)
+        code += "mov %rax, -{}(%rbp)\n".format(varoffset)
         return code
 
     def generateIf(self, node):
@@ -171,17 +176,27 @@ class ASMGenerator(Generator):
         code += self.generateSyscall(0, "$0", "$inputbuf", "$127")
         code += "mov $inputbuf, %rdi\n"
         code += "call atoi\n"
-        self.variables[node.name] = True
-        code += "mov %rax, {}\n".format(node.name)
+        varoffset = self.addLocalVar(node.name)
+        code += "mov %rax, -{}(%rbp)\n".format(varoffset)
         return code
 
     def generateReturn(self, node):
         code = self.generate(node.expression)
-        code += "ret\n"
+        code += "leave\nret\n"
         return code
 
+    def generateExpressionStatement(self, node):
+        return self.generate(node.exp)
+
+    def generateStr(self, node):
+        value = node.value
+        name = self.getlabel("str")
+        self.constants[name] = value
+        return "mov ${}, %rax\n".format(name)
+
+    # ---- Start of x64 specific helper functions
+
     def printint(self, value):
-        self.variables["intformat"] = "%d"
         return dedent("""\
             mov {}, %rsi
             mov $intformat, %rdi
@@ -190,3 +205,39 @@ class ASMGenerator(Generator):
             movq stdout(%rip), %rdi
             call fflush
             """).format(value)
+
+    def getlabel(self, pfx, glob=False):
+        self.labelcounter += 1
+        l = pfx+str(self.labelcounter)
+        if not glob:
+            l = ".L"+l
+        return l
+
+    def generateSyscall(self, call, *args):
+        regs = ["rdi", "rsi", "rdx", "r10", "r8", "r9"]
+        code = "mov ${}, %eax\n".format(call)
+        i = 0
+        for arg in args:
+            code += "mov {}, %{}\n".format(arg, regs[i])
+            i += 1
+        code += "syscall\n"
+        return code
+
+    def globalVariables(self):
+        code = ""
+        for k, v in self.constants.items():
+            code += "{}:\n.string \"{}\"\n\n".format(k, v)
+
+        for k, v in self.globalvars.items():
+            code += "{}:\n.quad 0x00\n\n".format(k)
+
+        code += "inputbuf:\n.skip 128\n\n"
+        code += "intformat:\n.string \"%d\""
+        return code
+
+    def addLocalVar(self, name):
+        if name in self.localvars:
+            return self.localvars[name]
+        offset = (len(self.localvars)+1)*8
+        self.localvars[name] = offset
+        return offset

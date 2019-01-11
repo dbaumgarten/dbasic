@@ -26,6 +26,9 @@ class Generator():
             ast.While: self.generateWhile,
             ast.Input: self.generateInput,
             ast.Return: self.generateReturn,
+            ast.Call: self.generateCall,
+            ast.ExpressionStatement: self.generateExpressionStatement,
+            ast.FuncDef: self.generateFuncdef,
         }
 
     def generate(self, node):
@@ -68,4 +71,13 @@ class Generator():
         raise GenerationError("AST-Type not implemented", node)
 
     def generateReturn(self, node):
+        raise GenerationError("AST-Type not implemented", node)
+
+    def generateCall(self, node):
+        raise GenerationError("AST-Type not implemented", node)
+
+    def generateExpressionStatement(self, node):
+        raise GenerationError("AST-Type not implemented", node)
+
+    def generateFuncdef(self, node):
         raise GenerationError("AST-Type not implemented", node)

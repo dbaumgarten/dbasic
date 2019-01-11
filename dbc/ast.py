@@ -1,8 +1,8 @@
 
 
 class Programm:
-    def __init__(self, statements):
-        self.statements = statements
+    def __init__(self, parts):
+        self.parts = parts
 
 
 class Print:
@@ -65,3 +65,21 @@ class Input:
 class Return:
     def __init__(self, expression):
         self.expression = expression
+
+
+class Call:
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+
+
+class ExpressionStatement:
+    def __init__(self, exp):
+        self.exp = exp
+
+
+class FuncDef:
+    def __init__(self, name, args, statements):
+        self.name = name
+        self.args = args
+        self.statements = statements

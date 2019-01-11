@@ -1,0 +1,9 @@
+FUNC test(a,b,c)
+RETURN a+b+c
+END
+FUNC main()
+PRINT "Hallo\n"
+LET res = test(1,2,3)
+PRINT res, "\n"
+RETURN res
+END

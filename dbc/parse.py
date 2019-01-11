@@ -47,25 +47,86 @@ def parse(t):
     statements = []
 
     while t.peek():
-        st = statement(t)
-        if not st:
-            raise ParserError(
-                t.peek().line, "Unknown statement-type: '{}'".format(t.peek().value))
-        statements.append(st)
+        fd = funcdef(t)
+        if fd:
+            statements.append(fd)
+            continue
+
+        raise ParserError(
+            t.peek().line, "Unknown statement-type: '{}'".format(t.peek().value))
 
     return ast.Programm(statements)
 
 
 @LogParsing
+def funcdef(t):
+    tok = t.peek()
+    if tok.type != "FUNC":
+        return None
+    t.next()
+    id = t.next()
+    if id.type != "ID":
+        raise ParserError(id.line, "Expected identifier after FUNC")
+    if t.next().type != "(":
+        raise ParserError(
+            id.line, "Expected '(' in function definition")
+    args = []
+    while True:
+        arg = t.next()
+        if arg.type == ")":
+            break
+        if arg.type != "ID":
+            raise ParserError(
+                arg.line, "Expected identifier in FUNC argument list", arg)
+        args.append(arg.value)
+        n = t.peek()
+        if n.type == ")":
+            continue
+        if n.type != ",":
+            raise ParserError(
+                arg.line, "Expected ',' after argument in argument list")
+        t.next()
+
+    if t.next().type != "NL":
+        raise ParserError(id.line, "Expected newline after FUNC definition")
+
+    body = block(t)
+
+    if t.next().type != "END":
+        raise ParserError(id.line, "Expected END at the end of function body")
+
+    if t.next().type != "NL":
+        raise ParserError(
+            id.line, "Expected newline after END of function body")
+
+    return ast.FuncDef(id.value, args, body)
+
+
+@LogParsing
 def statement(t):
     st = printstatement(t) or ifstatement(
-        t) or letstatement(t) or whilestatement(t) or inputstatement(t) or returnstatement(t)
+        t) or letstatement(t) or whilestatement(t) or inputstatement(t) or returnstatement(t) or expressionstatement(t)
     if not st:
         return None
     nl = t.next()
     if nl.type != "NL":
         raise ParserError(nl.line, "Missing newline")
     return st
+
+
+@LogParsing
+def funccallargs(t):
+    tok = t.peek()
+    if tok.type != "(":
+        return None
+    t.next()
+    args = exprlist(t)
+    if not args:
+        args = []
+    endtoken = t.next()
+    if endtoken.type != ")":
+        raise ParserError(tok.line, "Missing ) in function call.")
+    return args
 
 
 @LogParsing
@@ -183,6 +244,14 @@ def inputstatement(t):
 
 
 @LogParsing
+def expressionstatement(t):
+    exp = expression(t)
+    if exp:
+        return ast.ExpressionStatement(exp)
+    return None
+
+
+@LogParsing
 def block(t):
     statements = []
     st = statement(t)
@@ -296,14 +365,32 @@ def term(t):
 
 @LogParsing
 def factor(t):
-    tok = t.next()
-    if tok.type == "ID":
-        return ast.Var(tok.value)
-    elif tok.type == "CONST":
+    idexp = identifyerexpression(t)
+    if idexp:
+        return idexp
+    tok = t.peek()
+    if tok.type == "CONST":
+        t.next()
         return ast.Const(tok.value)
     elif tok.type == "(":
+        t.next()
         exp = expression(t)
         if not exp or t.next().type != ")":
             return None
         return exp
-    pass
+    else:
+        return None
+
+
+@LogParsing
+def identifyerexpression(t):
+    tok = t.peek()
+    if tok.type != "ID":
+        return None
+    id = t.next()
+
+    funcargs = funccallargs(t)
+    if funcargs:
+        return ast.Call(id.value, funcargs)
+
+    return ast.Var(id.value)

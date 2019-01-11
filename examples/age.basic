@@ -1,3 +1,4 @@
+FUNC main()
 PRINT "Please enter your age:"
 INPUT age
 PRINT "Your are ",age," years old?\n"
@@ -13,4 +14,6 @@ IF age > 23 THEN
 PRINT "Fuck! Your old as hell!\n"
 ELSE
 PRINT "Astonishingly young!!!\n"
+END
+exit(0)
 END
