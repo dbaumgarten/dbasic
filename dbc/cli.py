@@ -44,29 +44,24 @@ def main():
         if args.debug:
             parse.debug = True
 
-        tokenizer = tokenize.Tokenizer(f.read())
         try:
+            tokenizer = tokenize.Tokenizer(f.read())
             syntaxtree = parse.parse(tokenizer)
-        except parse.ParserError as e:
-            print(e)
-            sys.exit(1)
-
-        try:
             VariableChecker().check(syntaxtree)
-        except CheckError as e:
-            print(e)
-            sys.exit(1)
 
-        if args.type == "c":
-            generator = generatec.CGenerator()
-        if args.type == "asm" or args.type == "binary":
-            generator = generateasm.ASMGenerator()
+            if args.type == "c":
+                generator = generatec.CGenerator()
+            elif args.type == "asm" or args.type == "binary":
+                generator = generateasm.ASMGenerator()
+            else:
+                print("Unknown target type")
+                sys.exit(1)
 
-        try:
             code = generator.generate(syntaxtree)
             if args.type == "asm":
                 code = format(code)
-        except VisitorError as e:
+
+        except (parse.ParserError, VisitorError, CheckError) as e:
             print(e)
             sys.exit(1)
 
