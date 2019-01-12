@@ -4,17 +4,22 @@ import dbc.ast as ast
 from textwrap import dedent
 
 import dbc.ast as ast
-from dbc.generate import Generator, GenerationError
+from dbc.visit import Visitor, VisitorError
 
 
-class CGenerator(Generator):
+class CGenerator(Visitor):
     def __init__(self):
         self.localvars = dict()
         self.globalvars = dict()
         super().__init__()
 
-    def generateProgramm(self, node):
-        preamble = dedent("""\
+    def generate(self, node):
+        return self.visitProgramm(node)
+
+    def visitProgramm(self, node):
+        self.globalvars = node.globalvars
+
+        code = dedent("""\
                 # include <stdio.h>
                 # include <string.h>
                 # include <stdlib.h>
@@ -22,69 +27,64 @@ class CGenerator(Generator):
                 char inputbuffer[60];
                 """)
 
-        code = self.builtinFunctions()
-        for func in node.parts:
-            code += self.generate(func)
-
-        globalvarcode = ""
         for k, v in self.globalvars.items():
-            globalvarcode += "int {} = {};\n".format(k, v)
+            code += "int {} = {};\n".format(k, v)
 
-        return preamble+globalvarcode+code
+        code += self.builtinFunctions()
 
-    def generateFuncdef(self, node):
+        for func in node.parts:
+            code += self.visit(func)
+
+        return code
+
+    def visitFuncdef(self, node):
         code = "int " + node.name + "("
         code += ",".join([("int "+x) for x in node.args])
         code += "){\n"
         for statement in node.statements:
-            code += self.generate(statement)
+            code += self.visit(statement)
         code += "}\n\n"
         return code
 
-    def generateBinary(self, exp):
-        return "("+self.generate(exp.val1)+exp.op+self.generate(exp.val2)+")"
+    def visitBinary(self, exp):
+        return "("+self.visit(exp.val1)+exp.op+self.visit(exp.val2)+")"
 
-    def generateVar(self, node):
+    def visitVar(self, node):
         return str(node.name)
 
-    def generateConst(self, node):
+    def visitConst(self, node):
         return str(node.value)
 
-    def generateAssign(self, node):
-        code = ""
-        if not node.name in self.localvars and not node.name in self.globalvars:
-            raise GenerationError(
-                "Referenced variable {} before assignment.".format(node.name), node)
-        code += "{} = {};\n".format(node.name, self.generate(node.value))
-        return code
+    def visitAssign(self, node):
+        return "{} = {};\n".format(node.name, self.visit(node.value))
 
-    def generateIf(self, st):
-        code = "if ({}) {{\n".format(self.generate(st.exp))
+    def visitIf(self, st):
+        code = "if ({}) {{\n".format(self.visit(st.exp))
         for statement in st.statements:
-            code += self.generate(statement)
+            code += self.visit(statement)
         code += "}"
         if st.elsestatements:
             code += "else{\n"
             for statement in st.elsestatements:
-                code += self.generate(statement)
+                code += self.visit(statement)
             code += "}"
         code += "\n"
         return code
 
-    def generateWhile(self, st):
-        code = "while ({}) {{\n".format(self.generate(st.exp))
+    def visitWhile(self, st):
+        code = "while ({}) {{\n".format(self.visit(st.exp))
         for statement in st.statements:
-            code += self.generate(statement)
+            code += self.visit(statement)
         code += "}\n"
         return code
 
-    def generateReturn(self, node):
-        return "return {};\n".format(self.generate(node.expression))
+    def visitReturn(self, node):
+        return "return {};\n".format(self.visit(node.expression))
 
-    def generateCall(self, node):
+    def visitCall(self, node):
         code = node.name + "("
         for arg in node.args:
-            code += self.generate(arg)
+            code += self.visit(arg)
             code += ","
         code = code.rstrip(",")
         code += ")"
@@ -92,15 +92,14 @@ class CGenerator(Generator):
             code += ";\n"
         return code
 
-    def generateStr(self, node):
+    def visitStr(self, node):
         return "\""+node.value+"\""
 
-    def generateGlobaldef(self, node):
-        self.globalvars[node.name] = node.value
+    def visitGlobaldef(self, node):
         return ""
 
-    def generateLocaldef(self, node):
-        return "int {} = {};\n".format(node.name, self.generate(node.value))
+    def visitLocaldef(self, node):
+        return "int {} = {};\n".format(node.name, self.visit(node.value))
 
     def builtinFunctions(self):
         print = dedent("""\

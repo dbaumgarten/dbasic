@@ -1,82 +1,78 @@
 from textwrap import dedent
 
 import dbc.ast as ast
-from dbc.generate import Generator, GenerationError
+from dbc.visit import Visitor, VisitorError
 
 
-class ASMGenerator(Generator):
+class ASMGenerator(Visitor):
     def __init__(self):
         self.labelcounter = 0
         self.argorder = ["RDI", "RSI", "RDX", "RCX", "R8", "R9"]
-        self.localvars = dict()
-        self.globalvars = dict()
-        self.constants = dict()
+        self.constants = None
+        self.globalvars = None
+        self.localvars = None
+        self.localvaroffsets = dict()
         super().__init__()
 
-    def generateProgramm(self, node):
+    def generate(self, node):
+        self.constants = node.constants
+        self.globalvars = node.globalvars
+        return self.visitProgramm(node)
+
+    def visitProgramm(self, node):
         code = dedent("""\
         .file	"test.c"
             .text
             .globl	main
             .type	main, @function
         
-        {}
 
-        .data
-        {}
         """)
-        instructions = ""
         for statement in node.parts:
-            instructions += self.generate(statement)
+            code += self.visit(statement)
 
-        instructions += self.builtinFunctions()
+        code += self.builtinFunctions()
 
-        variables = self.globalVariables()
-        return code.format(instructions, variables)
+        code += ".data\n"
+        code += self.globalVariables(node)
+        return code
 
-    def generateFuncdef(self, node):
-        for arg in node.args:
-            self.addLocalVar(arg)
-
-        code = ""
-        for statement in node.statements:
-            code += self.generate(statement)
-
+    def visitFuncdef(self, node):
+        self.localvars = node.localvars
+        for i, k in enumerate(self.localvars.keys()):
+            self.localvaroffsets[k] = (i+1)*8
         stacksize = len(self.localvars)*8
-        preamble = node.name + ":\n"
-        preamble += "push %rbp\n"
-        preamble += "mov %rsp, %rbp\n"
-        preamble += "sub ${}, %rsp\n".format(stacksize)
-        argnumber = 0
-        for arg in node.args:
-            preamble += "mov %{}, -{}(%rbp)\n".format(
-                self.argorder[argnumber], self.localvars[arg])
-            argnumber += 1
 
-        self.localvars = dict()
-        return preamble+code+"\n\n"
+        code = node.name + ":\n"
+        code += "push %rbp\n"
+        code += "mov %rsp, %rbp\n"
+        code += "sub ${}, %rsp\n".format(stacksize)
 
-    def generateCall(self, node):
+        for i, arg in enumerate(node.args):
+            code += "mov %{}, -{}(%rbp)\n".format(
+                self.argorder[i], self.localvaroffsets[arg])
+
+        for statement in node.statements:
+            code += self.visit(statement)
+
+        return code+"\n\n"
+
+    def visitCall(self, node):
         code = ""
-        argnr = 0
-        for arg in node.args:
-            if argnr >= len(self.argorder):
-                raise GenerationError(
-                    "To many arguments for function: "+node.name, node)
-            code += self.generate(arg)
-            code += "push %{}\n".format(self.argorder[argnr])
-            code += "mov %rax, %{}\n".format(self.argorder[argnr])
-            argnr += 1
+        for i, arg in enumerate(node.args):
+            code += self.visit(arg)
+            code += "push %{}\n".format(self.argorder[i])
+            code += "mov %rax, %{}\n".format(self.argorder[i])
         code += "call {}\n".format(node.name)
-        for i in range(argnr, 0, -1):
+        for i in range(len(node.args), 0, -1):
             code += "pop %{}\n".format(self.argorder[i-1])
         return code
 
-    def generateBinary(self, exp):
+    def visitBinary(self, exp):
         code = ""
-        code += self.generate(exp.val1)
+        code += self.visit(exp.val1)
         code += "push %rax\n"
-        code += self.generate(exp.val2)
+        code += self.visit(exp.val2)
         code += "pop %rcx\n"
         if exp.op == "+":
             code += "add %rcx, %rax\n"
@@ -112,80 +108,75 @@ class ASMGenerator(Generator):
             code += "mov $0, %rax\n"
             code += "setge %al\n"
         else:
-            raise GenerationError(
-                "Insupported binary operation: "+"exp.op", exp)
+            raise VisitorError(
+                "Unsupported binary operation: "+"exp.op", exp)
         return code
 
-    def generateVar(self, node):
+    def visitVar(self, node):
         if node.name in self.localvars:
-            return "mov -{}(%rbp), %rax\n".format(self.localvars[node.name])
-        elif node.name in self.globalvars:
-            return "mov {}, %rax\n".format(node.name)
+            return "mov -{}(%rbp), %rax\n".format(self.localvaroffsets[node.name])
         else:
-            raise GenerationError(
-                "Referenced variable {} before assignment.".format(node.name), node)
+            return "mov {}, %rax\n".format(node.name)
 
-    def generateConst(self, node):
+    def visitConst(self, node):
         return "mov ${}, %rax\n".format(node.value)
 
-    def generateAssign(self, node):
-        code = self.generate(node.value)
+    def visitAssign(self, node):
+        code = self.visit(node.value)
         if node.name in self.localvars:
-            code += "mov %rax, -{}(%rbp)\n".format(self.localvars[node.name])
-        elif node.name in self.globalvars:
+            code += "mov %rax, -{}(%rbp)\n".format(
+                self.localvaroffsets[node.name])
+        else:
             code += "mov %rax, {}\n".format(node.name)
         return code
 
-    def generateIf(self, node):
+    def visitIf(self, node):
         code = ""
         endif = self.getlabel("endif")
         endelse = self.getlabel("endelse")
-        code += self.generate(node.exp)
+        code += self.visit(node.exp)
         code += "test %rax,%rax\n"
         code += "jz "+endif+"\n"
         for statement in node.statements:
-            code += self.generate(statement)
+            code += self.visit(statement)
         if node.elsestatements:
             code += "jmp "+endelse+"\n"
         code += endif+":\n"
         if node.elsestatements:
             for statement in node.elsestatements:
-                code += self.generate(statement)
+                code += self.visit(statement)
                 code += endelse+":\n"
         return code
 
-    def generateWhile(self, node):
+    def visitWhile(self, node):
         code = ""
         startlabel = self.getlabel("whilestart")
         endlabel = self.getlabel("whileend")
         code += startlabel+":\n"
-        code += self.generate(node.exp)
+        code += self.visit(node.exp)
         code += "test %rax,%rax\n"
         code += "jz "+endlabel+"\n"
         for statement in node.statements:
-            code += self.generate(statement)
+            code += self.visit(statement)
         code += "jmp "+startlabel+"\n"
         code += endlabel+":\n"
         return code
 
-    def generateReturn(self, node):
-        code = self.generate(node.expression)
+    def visitReturn(self, node):
+        code = self.visit(node.expression)
         code += "leave\nret\n"
         return code
 
-    def generateStr(self, node):
+    def visitStr(self, node):
         value = node.value
-        name = self.getlabel("str")
-        self.constants[name] = value
-        return "mov ${}, %rax\n".format(name)
+        label = self.constants[value]
+        return "mov ${}, %rax\n".format(label)
 
-    def generateGlobaldef(self, node):
-        self.globalvars[node.name] = node.value
+    def visitGlobaldef(self, node):
         return ""
 
-    def generateLocaldef(self, node):
-        self.addLocalVar(node.name)
-        return self.generateAssign(node)
+    def visitLocaldef(self, node):
+        return self.visitAssign(node)
 
     # ---- Start of x64 specific helper functions
 
@@ -206,23 +197,16 @@ class ASMGenerator(Generator):
         code += "syscall\n"
         return code
 
-    def globalVariables(self):
+    def globalVariables(self, programm):
         code = ""
-        for k, v in self.constants.items():
-            code += "{}:\n.string \"{}\"\n\n".format(k, v)
+        for k, v in programm.constants.items():
+            code += "{}:\n.string \"{}\"\n\n".format(v, k)
 
-        for k, v in self.globalvars.items():
+        for k, v in programm.globalvars.items():
             code += "{}:\n.quad {}\n\n".format(k, v)
 
         code += "inputbuf:\n.skip 128\n\n"
         return code
-
-    def addLocalVar(self, name):
-        if name in self.localvars:
-            return self.localvars[name]
-        offset = (len(self.localvars)+1)*8
-        self.localvars[name] = offset
-        return offset
 
     def builtinFunctions(self):
         input = "\n\ninput:\n"
