@@ -14,7 +14,11 @@ import subprocess
 import os.path
 
 
-def main():
+def main(args=None):
+    """ Main entrypoint for the DBASIC compiler CLI application 
+
+        :params args: Optional command line arguments (mainly used for testing). If None, sys.argv is used.
+    """
     # setup CLI-Arguments
     parser = argparse.ArgumentParser(description='Compile DBASIC file')
     parser.add_argument('infile', type=str, help='The file to compile')
@@ -26,7 +30,7 @@ def main():
     parser.add_argument('-g', "--gccargs", type=str,
                         help="Additional args for gcc")
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     # generate the output filename if not explicitly given
     if not args.outfile:
