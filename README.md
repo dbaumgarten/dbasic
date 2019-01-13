@@ -9,6 +9,7 @@ TinyBASIC served as a starting point, as it is such a small language and easy to
 
 ## What is it good for?
 Honestly the practical use of DBASIC is somewhat limited, but I think it is great to learn about compiler design. It helped me a lot to understand the subject and I think it might be of great use for others too.
+The code is super heavily commented (especially the tricky parts) and should be easy to understand.
 
 ## How to use it?
 First you need to install the compiler:  
@@ -41,4 +42,10 @@ As the language and the compiler needed to stay quite simple there are some limi
 - Currently no stdlib
 - The generated assembly-code is 100% unoptimized.
 - Only linux is supported and valid compilation targets are C and x86-64 assembly
+
+## Stability guarantees
+None. 
+I am still playing around with this, adding and changing features without caring for backwards compatibility.
+Even significant changes to the language itself may suddenly appear.
+If you need (for whatever reason) a stable version, just fork the repo.
 
