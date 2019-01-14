@@ -6,6 +6,7 @@ from dbc.formatasm import format
 import dbc.generateasm as generateasm
 import dbc.generatec as generatec
 from dbc.checkvariables import VariableChecker
+from dbc.checktypes import TypeChecker
 from dbc.errors import CheckError
 
 import sys
@@ -57,6 +58,8 @@ def main(args=None):
             syntaxtree = parse.parse(tokenizer)
             # annotate the tree with variable information and check for variable-relatet semantic errors
             VariableChecker().check(syntaxtree)
+            # check for type-errors
+            TypeChecker().check(syntaxtree)
 
             # choose a code-generator based on the users wanted output-format
             if args.type == "c":

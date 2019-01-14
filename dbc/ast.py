@@ -13,16 +13,20 @@
 class Programm:
     """ The root node of the whole Programm"""
 
-    def __init__(self, parts):
-        """ A list of parts. A part can be a FUncDef or a GlobalDef"""
-        self.parts = parts
+    def __init__(self, functions, globalvars):
+        """ A list of functions defined in this programm as Nodes"""
+        self.funcdefs = functions
+        """ A list of global variables definition Nodes in this programm """
+        self.globaldefs = globalvars
         """ This field is not populated by the parser but later by the VariableChecker.
         It contains all string-constants used in the programm.
-        It is a dict with the constant's value as string and a unique identifier for this constant value as value."""
+        It is a dict with the constant's value as key and a unique identifier for this constant value as value."""
         self.constants = None
         """ This field is not populated by the parser but later by the VariableChecker.
         It contains all global variables used in the programm.
-        It is a dict with the variables name as key and the initial value as value"""
+        It is a dict with the variables name as key and the initial value as value
+        In contrast to self.funcdefs this list does NOT contain AST Nodes
+        """
         self.globalvars = None
 
 
@@ -127,7 +131,7 @@ class Call:
 class FuncDef:
     """ The definiton of a function """
 
-    def __init__(self, name, args, statements):
+    def __init__(self, name, args, statements, returntype):
         """ The name of the defined function """
         self.name = name
         """ A list of names(string) of aguments to this function"""
@@ -138,6 +142,8 @@ class FuncDef:
         It contains all local variables (including arguments) used in this function.
         It is a dict with the variable's name as key and the initial value as value"""
         self.localvars = None
+        """ The return type of this function as string (e.g. "INT")"""
+        self.returntype = returntype
 
 
 class GlobalDef:

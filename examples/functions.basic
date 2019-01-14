@@ -2,12 +2,19 @@ GLOBAL INT myconst = 10
 FUNC test(INT a, INT b, INT c) INT
     RETURN a+b+c+myconst
 END
-FUNC main()
+
+FUNC othertest()
+    INT x = 3
+    RETURN
+END
+
+FUNC main() INT
     print("Hallo\n")
     INT res = test(1,2,3)
     print("%d\n",res)
     myconst = 20
     INT other = test(1,2,3)
     print("%d\n",other)
+    othertest()
     RETURN res
 END

@@ -69,24 +69,25 @@ class ParserError(Exception):
 @LogParsing
 def parse(t):
     """ Entry-point for parsing. Returns an ast:programm or raises a ParserError"""
-    statements = []
+    functions = []
+    globalvars = []
 
     while t.peek():
         # a programm consists of function definitions and global variables in arbitary order
-        fd = funcdef(t) or globaldef(t)
-        if fd:
-            statements.append(fd)
-            # all statements fave to end in a newline
-            if t.next().type != "NL":
-                raise ParserError(
-                    fd.line, "Expected newline after END of definition")
+        func = funcdef(t)
+        if func:
+            functions.append(func)
             continue
 
-        # whatever we found wasn't a funcdef or globaldef
+        glob = globaldef(t)
+        if glob:
+            globalvars.append(glob)
+            continue
+
         raise ParserError(
             t.peek().line, "Unknown statement-type: '{}'".format(t.peek()))
 
-    return ast.Programm(statements)
+    return ast.Programm(functions, globalvars)
 
 
 @LogParsing
@@ -128,9 +129,11 @@ def funcdef(t):
         t.next()
 
     # Allow return-type to be specified optionally
+    returntype = None
     funct = t.peek()
     if funct.type == "TYPE":
-        # currently no type-checking happens, so the return-type can be ignored
+        # if the function has a return type, take note of it
+        returntype = funct.value
         t.next()
 
     # There has to be a newline before the start of the function-body
@@ -145,8 +148,13 @@ def funcdef(t):
     if expectedend.type != "END":
         raise ParserError(id.line, "Unknown statement type", expectedend)
 
+    # function blocks have to end with a newline
+    if t.next().type != "NL":
+        raise ParserError(
+            expectedend.line, "Expected newline after END of function block")
+
     # construct the funcdef AST-Node from functionname, arguments and body and return it
-    return ast.FuncDef(id.value, args, body)
+    return ast.FuncDef(id.value, args, body, returntype)
 
 
 @LogParsing
@@ -160,13 +168,13 @@ def globaldef(t):
     if not ldef:
         raise ParserError(
             tok.line, "Expected variable declaration after GLOBAL")
-    # globals can only be initialized using constants. Check it.
-    if type(ldef.value) != ast.Const:
+
+    # global var definitions have to end with a newline
+    if t.next().type != "NL":
         raise ParserError(
-            tok.line, "Global variables can only be initialize using constants")
-    # use the value of the constant instead of the constant-node as initialisation value
-    # TODO: This is messy. Move the check to checkvariables and just use the node here
-    return ast.GlobalDef(ldef.name, ldef.value.value)
+            tok.line, "Expected newline after END of variable definition")
+
+    return ast.GlobalDef(ldef.name, ldef.value)
 
 
 @LogParsing
@@ -214,9 +222,8 @@ def returnstatement(t):
     if tok.type != "RETURN":
         return None
     t.next()
+    # expression can by None. In this case the function returns nothing
     exp = expression(t)
-    if not exp:
-        raise ParserError(tok.line, "Expected expression after return value")
     return ast.Return(exp)
 
 

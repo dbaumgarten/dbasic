@@ -8,7 +8,7 @@ FUNC pixel(INT x, INT y, INT count) INT
     pixelcount = pixelcount+1
     RETURN 0
 END
-FUNC main()
+FUNC main() INT
     puts("Hi")
     print("Enter wanted width:")
     INT count = input()

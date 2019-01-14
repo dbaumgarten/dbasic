@@ -1,4 +1,4 @@
-FUNC main()
+FUNC main() INT
     print("How many?:")
     INT dest = input()
     INT x = 0
@@ -10,7 +10,7 @@ FUNC main()
     RETURN 0
 END
 
-FUNC fib(INT n)
+FUNC fib(INT n) INT
     IF n < 2 THEN
         RETURN 1
     ELSE

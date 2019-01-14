@@ -52,7 +52,7 @@ class CGenerator(Visitor):
         code += self.builtinFunctions()
 
         # generate code for the childnodes of ast.Programm and append it
-        for func in node.parts:
+        for func in node.funcdefs:
             code += self.visit(func)
 
         return code
@@ -105,7 +105,10 @@ class CGenerator(Visitor):
         return code
 
     def visitReturn(self, node):
-        return "return {};\n".format(self.visit(node.expression))
+        if node.expression:
+            return "return {};\n".format(self.visit(node.expression))
+        else:
+            return "return\n"
 
     def visitCall(self, node):
         code = node.name + "("

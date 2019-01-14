@@ -49,8 +49,10 @@ class Visitor():
         return visitfunc(node)
 
     def visitProgramm(self, node):
-        for part in node.parts:
-            self.visit(part)
+        for glob in node.globaldefs:
+            self.visit(glob)
+        for func in node.funcdefs:
+            self.visit(func)
 
     def visitUnary(self, node):
         self.visit(node.val)
@@ -86,7 +88,8 @@ class Visitor():
             self.visit(statement)
 
     def visitReturn(self, node):
-        self.visit(node.expression)
+        if node.expression:
+            self.visit(node.expression)
 
     def visitCall(self, node):
         for arg in node.args:
@@ -97,7 +100,7 @@ class Visitor():
             self.visit(statement)
 
     def visitGlobaldef(self, node):
-        pass
+        self.visit(node.value)
 
     def visitLocaldef(self, node):
         self.visit(node.value)

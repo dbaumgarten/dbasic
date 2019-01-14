@@ -26,14 +26,12 @@ class VariableChecker(Visitor):
         return self.visitProgramm(node)
 
     def visitProgramm(self, node):
-        # first find all global variables
-        for part in node.parts:
-            if type(part) == ast.GlobalDef:
-                self.visit(part)
+        # first visit all global variables
+        for glob in node.globaldefs:
+            self.visit(glob)
         # then analyse all defined functions
-        for part in node.parts:
-            if type(part) == ast.FuncDef:
-                self.visit(part)
+        for func in node.funcdefs:
+            self.visit(func)
         # annotate the progamm node with information about globals and constants
         node.globalvars = self.globalvars
         node.constants = self.constants
@@ -82,7 +80,11 @@ class VariableChecker(Visitor):
         # make sure global variables are only declared once
         if node.name in self.globalvars:
             raise CheckError("Redefinition of global var: "+node.name)
-        self.globalvars[node.name] = node.value
+        # globals can only be initialized using constants. Check it.
+        if type(node.value) != ast.Const:
+            raise CheckError(
+                "Global variables can only be initialize using constants")
+        self.globalvars[node.name] = node.value.value
 
     def visitLocaldef(self, node):
         # make sure global variables are only declared once per function

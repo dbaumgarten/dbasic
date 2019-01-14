@@ -54,9 +54,9 @@ class ASMGenerator(Visitor):
         
 
         """)
-        # generate code for all parts of the programm recursively
-        for statement in node.parts:
-            code += self.visit(statement)
+        # generate code for all functions of the programm recursively
+        for func in node.funcdefs:
+            code += self.visit(func)
 
         # append code for the builtin functions
         code += self.builtinFunctions()
@@ -233,8 +233,10 @@ class ASMGenerator(Visitor):
         return code
 
     def visitReturn(self, node):
-        # calculate the value to return
-        code = self.visit(node.expression)
+        code = ""
+        # calculate the value to return (if anything is returned)
+        if node.expression:
+            code += self.visit(node.expression)
         # dealocate local variables with 'leave', return via 'ret'
         code += "leave\nret\n"
         return code

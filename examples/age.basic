@@ -1,4 +1,4 @@
-FUNC main()
+FUNC main() INT
     print("Please enter your age:")
     INT age = input()
     print("Your are %d years old?\n",age)

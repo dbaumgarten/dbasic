@@ -1,4 +1,4 @@
-FUNC main()
+FUNC main() INT
     INT x = input()
     print("%d\n",x)
     RETURN 0
