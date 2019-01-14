@@ -1,5 +1,5 @@
 GLOBAL INT myconst = 10
-FUNC test(a,b,c)
+FUNC test(INT a, INT b, INT c) INT
     RETURN a+b+c+myconst
 END
 FUNC main()

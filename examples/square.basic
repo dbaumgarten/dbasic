@@ -1,5 +1,5 @@
 GLOBAL INT pixelcount = 0
-FUNC pixel(x,y,count)
+FUNC pixel(INT x, INT y, INT count) INT
     IF x == y | x == 0 | y == 0 | y == count - 1 | x == count - 1 | x + y == count - 1 THEN
         print("XX")
     ELSE

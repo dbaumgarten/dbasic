@@ -108,9 +108,13 @@ def funcdef(t):
     args = []
     # parse an aribitary long list of comma seperated arguments until ')' or an unexpected token is encountered
     while True:
-        arg = t.next()
-        if arg.type == ")":
+        argt = t.next()
+        if argt.type == ")":
             break
+        if argt.type != "TYPE":
+            raise ParserError(
+                argt.line, "Expected type-identifier in function declaration", argt)
+        arg = t.next()
         if arg.type != "ID":
             raise ParserError(
                 arg.line, "Expected identifier in FUNC argument list", arg)
@@ -121,6 +125,12 @@ def funcdef(t):
         if n.type != ",":
             raise ParserError(
                 arg.line, "Expected ',' after argument in argument list")
+        t.next()
+
+    # Allow return-type to be specified optionally
+    funct = t.peek()
+    if funct.type == "TYPE":
+        # currently no type-checking happens, so the return-type can be ignored
         t.next()
 
     # There has to be a newline before the start of the function-body
