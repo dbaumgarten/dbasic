@@ -38,21 +38,11 @@ class VariableChecker(Visitor):
         node.globalvars = self.globalvars
         node.constants = self.constants
 
-    def visitUnary(self, node):
-        self.visit(node.val)
-
-    def visitBinary(self, node):
-        self.visit(node.val1)
-        self.visit(node.val2)
-
     def visitVar(self, node):
         # make sure variables are only used AFTER they have been declared
         if node.name not in self.globalvars and node.name not in self.localvars:
             raise CheckError(
                 "Variable {} is not defined before use".format(node.name))
-
-    def visitConst(self, node):
-        pass
 
     def visitStr(self, node):
         # take note of all string constants
@@ -65,23 +55,6 @@ class VariableChecker(Visitor):
             raise CheckError(
                 "Variable {} is not defined before assignment".format(node.name))
         self.visit(node.value)
-
-    def visitIf(self, node):
-        self.visit(node.exp)
-        for statement in node.statements:
-            self.visit(statement)
-        if node.elsestatements:
-            for statement in node.elsestatements:
-                self.visit(statement)
-        pass
-
-    def visitWhile(self, node):
-        self.visit(node.exp)
-        for statement in node.statements:
-            self.visit(statement)
-
-    def visitReturn(self, node):
-        self.visit(node.expression)
 
     def visitCall(self, node):
         # because of limitations in the code-generator for x86-64 assembler function calls can only take 6 or less arguments

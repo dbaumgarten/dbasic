@@ -7,11 +7,11 @@ import dbc.ast as ast
 
 
 class VisitorError(Exception):
-    """ Is thrown when a Visitor implementation did not override the method necessary to handle an encountered node-type"""
+    """ Is thrown when visit() is called with an unkown type."""
 
     def __init__(self, msg, node):
         self.msg = msg
-        self.fullmessage = "Code-VisitorError-Error. Could not generate code for ast-node: {}. {}".format(
+        self.fullmessage = "Unknown AST-Node-Type: {}. {}".format(
             str(node), msg)
         super().__init__(self.fullmessage)
 
@@ -19,7 +19,8 @@ class VisitorError(Exception):
 class Visitor():
     """ The baseclass for all visitores. It knows which function to call for which ast-type.
     All visitors override the provided default-methods with their own logic.
-    As the order in which node-children are visit is dependent on the visitors, visitors have to implement the decending to child-nodes themselfs.
+    The un-overriden method contain the logic to visit all the children of the specifi node type.
+    If a visitor does not need to perform special actions for some specific type it does not need to override the specific method.
     """
 
     def __init__(self):
@@ -48,43 +49,55 @@ class Visitor():
         return visitfunc(node)
 
     def visitProgramm(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        for part in node.parts:
+            self.visit(part)
 
     def visitUnary(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.val)
 
     def visitBinary(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.val1)
+        self.visit(node.val2)
 
     def visitVar(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        pass
 
     def visitConst(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        pass
 
     def visitStr(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        pass
 
     def visitAssign(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.value)
 
     def visitIf(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.exp)
+        for statement in node.statements:
+            self.visit(statement)
+        if node.elsestatements:
+            for statement in node.elsestatements:
+                self.visit(statement)
+        pass
 
     def visitWhile(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.exp)
+        for statement in node.statements:
+            self.visit(statement)
 
     def visitReturn(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.expression)
 
     def visitCall(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        for arg in node.args:
+            self.visit(arg)
 
     def visitFuncdef(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        for statement in node.statements:
+            self.visit(statement)
 
     def visitGlobaldef(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        pass
 
     def visitLocaldef(self, node):
-        raise VisitorError("AST-Type not implemented", node)
+        self.visit(node.value)
