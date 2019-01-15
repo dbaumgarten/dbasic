@@ -87,7 +87,7 @@ def parse(t):
         raise ParserError(
             t.peek().line, "Unknown statement-type: '{}'".format(t.peek()))
 
-    return ast.Programm(functions, globalvars)
+    return ast.Programm(functions, globalvars, 0)
 
 
 @LogParsing
@@ -154,7 +154,7 @@ def funcdef(t):
             expectedend.line, "Expected newline after END of function block")
 
     # construct the funcdef AST-Node from functionname, arguments and body and return it
-    return ast.FuncDef(id.value, args, body, returntype)
+    return ast.FuncDef(id.value, args, body, returntype, id.line)
 
 
 @LogParsing
@@ -174,7 +174,7 @@ def globaldef(t):
         raise ParserError(
             tok.line, "Expected newline after END of variable definition")
 
-    return ast.GlobalDef(ldef.name, ldef.value)
+    return ast.GlobalDef(ldef.name, ldef.value, tok.line)
 
 
 @LogParsing
@@ -194,7 +194,7 @@ def localdef(t):
     if not val:
         raise ParserError(
             id.line, "Missing expression for value of declared variable.")
-    return ast.LocalDef(id.value, val)
+    return ast.LocalDef(id.value, val, tok.line)
 
 
 @LogParsing
@@ -224,7 +224,7 @@ def returnstatement(t):
     t.next()
     # expression can by None. In this case the function returns nothing
     exp = expression(t)
-    return ast.Return(exp)
+    return ast.Return(exp, tok.line)
 
 
 @LogParsing
@@ -263,7 +263,7 @@ def ifstatement(t):
     if t.next().type != "END":
         raise ParserError(then.line, "Missing END of IF-Block")
 
-    return ast.If(exp, statements, elsestatements)
+    return ast.If(exp, statements, elsestatements, tok.line)
 
 
 @LogParsing
@@ -292,7 +292,7 @@ def whilestatement(t):
     if t.next().type != "END":
         raise ParserError(then.line, "Missing END of IF-Block")
 
-    return ast.While(exp, statements)
+    return ast.While(exp, statements, tok.line)
 
 
 @LogParsing
@@ -310,7 +310,7 @@ def assignstatement(t):
     if not expr:
         raise ParserError(
             vartok.line, "No expression after assignment operator")
-    return ast.Assign(vartok.value, expr)
+    return ast.Assign(vartok.value, expr, vartok.line)
 
 
 @LogParsing
@@ -328,12 +328,14 @@ def funccall(t):
     endtoken = t.next()
     if endtoken.type != ")":
         raise ParserError(id.line, "Missing ) in function call.")
-    return ast.Call(id.value, args)
+    return ast.Call(id.value, args, False, id.line)
 
 
 @LogParsing
 def block(t):
-    """ a block is a series of statements (usually terminated by END or sometimes ELSE) """
+    """ a block is a series of statements (usually terminated by END or sometimes ELSE) 
+        this function does return a list of Nodes instead of a single node
+    """
     statements = []
     # while we can parse a statement -> do it and append it to the list
     st = statement(t)
@@ -350,6 +352,7 @@ def exprlist(t):
         All variables are of type INT, BUT we allow string-constants as function arguments.
         Custom functions can't realy use them as arguments, but it is possible to call C-Functions and internal functions
         that accept strings
+        this function does return a list of expressions instead of a single node
     """
     exl = []
 
@@ -375,7 +378,7 @@ def string(t):
     tok = t.peek()
     if tok.type == "STR":
         t.next()
-        return ast.Str(tok.value)
+        return ast.Str(tok.value, tok.line)
     return None
 
 
@@ -395,7 +398,7 @@ def expression(t):
         f = logicexpression(t)
         if not f:
             return None
-        root = ast.Binary(bintype, root, f)
+        root = ast.Binary(bintype, root, f, root.line)
         bintype = t.peek().type
     return root
 
@@ -414,7 +417,7 @@ def logicexpression(t):
     t2 = sumexpression(t)
     if not t2:
         return None
-    return ast.Binary(operator.type, t1, t2)
+    return ast.Binary(operator.type, t1, t2, operator.line)
 
 
 @LogParsing
@@ -427,7 +430,7 @@ def sumexpression(t):
         t.next()
         root = term(t)
         if root:
-            root = ast.Unary("-", root)
+            root = ast.Unary("-", root, root.line)
     else:
         # multiplication expressions have t (terms) he next higher priority. parse them first
         root = term(t)
@@ -441,7 +444,7 @@ def sumexpression(t):
         nterm = term(t)
         if not nterm:
             return None
-        root = ast.Binary(bintype, root, nterm)
+        root = ast.Binary(bintype, root, nterm, root.line)
         bintype = t.peek().type
     return root
 
@@ -459,7 +462,7 @@ def term(t):
         f = factor(t)
         if not f:
             return None
-        root = ast.Binary(bintype, root, f)
+        root = ast.Binary(bintype, root, f, root.line)
         bintype = t.peek().type
     return root
 
@@ -475,7 +478,7 @@ def factor(t):
     # or a constant
     if tok.type == "CONST":
         t.next()
-        return ast.Const(tok.value)
+        return ast.Const(tok.value, tok.line)
     # or a bracketed expression
     elif tok.type == "(":
         t.next()
@@ -486,7 +489,7 @@ def factor(t):
     # or a variable
     elif tok.type == "ID":
         t.next()
-        return ast.Var(tok.value)
+        return ast.Var(tok.value, tok.line)
     # or neither
     else:
         return None

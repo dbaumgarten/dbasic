@@ -40,7 +40,7 @@ class VariableChecker(Visitor):
         # make sure variables are only used AFTER they have been declared
         if node.name not in self.globalvars and node.name not in self.localvars:
             raise CheckError(
-                "Variable {} is not defined before use".format(node.name))
+                "Variable {} needs to be declared before use".format(node.name), node)
 
     def visitStr(self, node):
         # take note of all string constants
@@ -51,13 +51,14 @@ class VariableChecker(Visitor):
         # make sure variables are only used AFTER they have been declared
         if node.name not in self.globalvars and node.name not in self.localvars:
             raise CheckError(
-                "Variable {} is not defined before assignment".format(node.name))
+                "Variable {} needs to be declared before assignment".format(node.name), node)
         self.visit(node.value)
 
     def visitCall(self, node):
         # because of limitations in the code-generator for x86-64 assembler function calls can only take 6 or less arguments
         if len(node.args) > 6:
-            raise CheckError("Function-calls can only take 6 arguments")
+            raise CheckError(
+                "Function-calls can take at most 6 arguments", node)
         for arg in node.args:
             self.visit(arg)
 
@@ -74,20 +75,23 @@ class VariableChecker(Visitor):
         # this check does not really belong here as it is not variable relatet
         # but at the moment this is the only checker class and the check is to important to leave out
         if type(node.statements[-1]) != ast.Return:
-            raise CheckError("Functions must end with a return-statement!")
+            raise CheckError(
+                "Functions must end with a return-statement", node)
 
     def visitGlobaldef(self, node):
         # make sure global variables are only declared once
         if node.name in self.globalvars:
-            raise CheckError("Redefinition of global var: "+node.name)
+            raise CheckError(
+                "Global variable {} has already been declared".format(node.name), node)
         # globals can only be initialized using constants. Check it.
         if type(node.value) != ast.Const:
             raise CheckError(
-                "Global variables can only be initialize using constants")
+                "Global variables can only be initialized using constants", node)
         self.globalvars[node.name] = node.value.value
 
     def visitLocaldef(self, node):
         # make sure global variables are only declared once per function
         if node.name in self.globalvars:
-            raise CheckError("Redefinition of local var: "+node.name)
+            raise CheckError(
+                "Local variable {} has already been declared".format(node.name), node)
         self.localvars[node.name] = node.value

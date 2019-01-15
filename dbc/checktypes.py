@@ -28,7 +28,8 @@ class TypeChecker(Visitor):
         # unary operations inherit the type of their operand
         node.type = node.val.type
         if node.type == None:
-            raise CheckError("Cannot perform unary operation on None-value")
+            raise CheckError(
+                "Cannot perform unary operation on None-type", node)
 
     def visitBinary(self, node):
         self.visit(node.val1)
@@ -36,10 +37,11 @@ class TypeChecker(Visitor):
         # operations can only be performed if both operands have the same type
         if node.val1.type != node.val1.type:
             raise CheckError(
-                "Both operands of a binary operation need to have the same type")
+                "Both operands of a binary operation need to have the same type", node)
         node.type = node.val1.type
         if node.type == None:
-            raise CheckError("Cannot perform binary operation on None-value")
+            raise CheckError(
+                "Cannot perform binary operation on None-type", node)
 
     def visitVar(self, node):
         # currently all variables have the type INT
@@ -63,7 +65,7 @@ class TypeChecker(Visitor):
         # can not return a value from a 'void' function (or void from an INT function)
         if node.type != self.currentfunc.returntype:
             raise CheckError(
-                "The type of the value to return must match the type of the function. Functype={}, Returntype={}".format(self.currentfunc.returntype, node.type))
+                "The type of the value to return must match the type of the function. Functype={}, Returntype={}".format(self.currentfunc.returntype, node.type), node)
 
     def visitFuncdef(self, node):
         self.currentfunc = node
@@ -75,13 +77,33 @@ class TypeChecker(Visitor):
         # currently there is only INT or None as types. Stop them from assigning None to an INT-Var
         if node.value.type == None:
             raise CheckError(
-                "Cannot assign None-type value to an INT-Variable")
+                "Cannot assign None-type value to an INT-Variable", node)
 
     def visitLocaldef(self, node):
         self.visit(node.value)
         if node.value.type == None:
             raise CheckError(
-                "Cannot assign None-type value to an INT-Variable")
+                "Cannot assign None-type value to an INT-Variable", node)
+
+    def visitIf(self, node):
+        self.visit(node.exp)
+        if node.exp.type == None:
+            raise CheckError(
+                "Cannot use None-type expression as condition for an IF statement", node)
+        for statement in node.statements:
+            self.visit(statement)
+        if node.elsestatements:
+            for statement in node.elsestatements:
+                self.visit(statement)
+        pass
+
+    def visitWhile(self, node):
+        self.visit(node.exp)
+        if node.exp.type == None:
+            raise CheckError(
+                "Cannot use None-type expression as condition for a WHILE statement", node)
+        for statement in node.statements:
+            self.visit(statement)
 
     def visitCall(self, node):
         # special treatment for builtin functions
@@ -98,6 +120,7 @@ class TypeChecker(Visitor):
             if not funcdef:
                 # we did not find a definition for this function. It is probably an extern function
                 # there is no type checking to do
+                node.type = None
                 return
 
             # the type of the call's resut is the return-type of the function
@@ -107,4 +130,5 @@ class TypeChecker(Visitor):
             self.visit(arg)
             # we currently only have INT and None as types. Make sure we do not pass a None-type to a function
             if arg.type == None:
-                raise CheckError("Cannot use None-type as function argument")
+                raise CheckError(
+                    "Cannot use None-type as function argument", node)

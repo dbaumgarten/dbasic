@@ -9,11 +9,8 @@ import dbc.ast as ast
 class VisitorError(Exception):
     """ Is thrown when visit() is called with an unkown type."""
 
-    def __init__(self, msg, node):
-        self.msg = msg
-        self.fullmessage = "Unknown AST-Node-Type: {}. {}".format(
-            str(node), msg)
-        super().__init__(self.fullmessage)
+    def __init__(self, msg):
+        super().__init__(msg)
 
 
 class Visitor():
@@ -45,7 +42,7 @@ class Visitor():
         """ Main visit-function. Calles the correct visitXX method based on the type of node"""
         visitfunc = self.funcmapping[type(node)]
         if not visitfunc:
-            raise VisitorError("Unkown AST-Node-Type:", node)
+            raise VisitorError("Unkown AST-Node-Type:" + str(node))
         return visitfunc(node)
 
     def visitProgramm(self, node):

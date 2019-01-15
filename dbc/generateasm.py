@@ -155,7 +155,7 @@ class ASMGenerator(Visitor):
             code += "setge %al\n"
         else:
             raise VisitorError(
-                "Unsupported binary operation: "+"exp.op", exp)
+                "Unsupported binary operation: "+exp.op)
         return code
 
     def visitVar(self, node):
