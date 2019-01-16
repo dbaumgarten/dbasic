@@ -163,10 +163,9 @@ class TypeChecker(Visitor):
             # the type of the call's resut is the return-type of the function
             node.type = funcdef.returntype
 
-        # TODO: Implement proper type-checking for function parameters
-        for arg in node.args:
-            self.visit(arg)
-            # Make sure we do not pass a None-type to a function
-            if arg.type == None:
-                raise CheckError(
-                    "Cannot use None-type as function argument", node)
+            for i, arg in enumerate(node.args):
+                self.visit(arg)
+                # Make sure we do not pass a None-type to a function
+                if arg.type != funcdef.argtypes[i]:
+                    raise CheckError(
+                        "Argument number {} for function {} needs to be of type {}, not {}".format(i, node.name, funcdef.argtypes[i], arg.type), node)

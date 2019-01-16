@@ -11,7 +11,7 @@ FUNC main() INT
         RETURN 1
     END
     IF age > 23 THEN
-        print("Fuck! Your old as hell!\n")
+        print("Fuck! You're old as hell!\n")
     ELSE
         print("Astonishingly young!!!\n")
     END

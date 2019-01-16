@@ -3,7 +3,7 @@ FUNC test(INT a, INT b, INT c) INT
     RETURN a+b+c+myconst
 END
 
-FUNC othertest()
+FUNC othertest(BOOL unused)
     INT x = 3
     WHILE TRUE DO
         print("%d\n",x)
@@ -22,6 +22,6 @@ FUNC main() INT
     myconst = 20
     INT other = test(1,2,3)
     print("%d\n",other)
-    othertest()
+    othertest(TRUE)
     RETURN res
 END
