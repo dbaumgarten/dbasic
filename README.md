@@ -11,6 +11,33 @@ TinyBASIC served as a starting point, as it is such a small language and easy to
 Honestly the practical use of DBASIC is somewhat limited, but I think it is great to learn about compiler design. It helped me a lot to understand the subject and I think it might be of great use for others too.
 The code is super heavily commented (especially the tricky parts) and should be easy to understand.
 
+## The language
+Detailed specifications for the language can be found [here](docs/language.md).  
+Here is an example for recursively calculationg and printing fibonacci numbers:
+```
+FUNC main() INT
+    print("How many?:")
+    INT dest = input()
+    INT x = 0
+    WHILE x < dest DO
+        print("%d,",fib(x))
+        x = x+1
+    END
+    print("\n")
+    RETURN 0
+END
+
+FUNC fib(INT n) INT
+    IF n < 2 THEN
+        RETURN 1
+    ELSE
+        RETURN fib(n-1)+fib(n-2)
+    END
+    RETURN 0
+END
+```
+More examples can be found in the examples folder.
+
 ## How to use it?
 First you need to install the compiler:  
 ```
@@ -26,8 +53,6 @@ pip install -e dbasic
 
 You will also need to have GCC installed as it is used to assemble and link the generated assembly code.
 
-
-Have a look at the examples in the examples directory. They show the usage of tha langage features. A detailed language specification might follow.
 
 Now compile your first programm:  
 ```
