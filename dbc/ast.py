@@ -31,6 +31,12 @@ class Programm:
         In contrast to self.funcdefs this list does NOT contain AST Nodes
         """
         self.globalvars = None
+        """ This field is not populated by the parser but later by the VariableChecker.
+        It contains all global variables used in the programm.
+        It is a dict with the variables name as key and  type of the variable as value
+        In contrast to self.funcdefs this list does NOT contain AST Nodes
+        """
+        self.globalvartypes = None
 
 
 class Unary:
@@ -69,9 +75,11 @@ class Var:
 class Const:
     """ An integer constant is referenced. (Something wants to use the value of a constant)"""
 
-    def __init__(self, value, line):
+    def __init__(self, value, type, line):
         """ The value of the constant as int"""
         self.value = value
+        """ The datatype of the constant """
+        self.type = type
         self.line = line
 
 
@@ -144,17 +152,23 @@ class Call:
 class FuncDef:
     """ The definiton of a function """
 
-    def __init__(self, name, args, statements, returntype, line):
+    def __init__(self, name, args, argtypes, statements, returntype, line):
         """ The name of the defined function """
         self.name = name
         """ A list of names(string) of aguments to this function"""
         self.args = args
+        """ The type of the arguments. In the same order as the arguments """
+        self.argtypes = argtypes
         """ A list of statements that are the body for this function"""
         self.statements = statements
         """ This field is not populated by the parser but later by the VariableChecker.
         It contains all local variables (including arguments) used in this function.
         It is a dict with the variable's name as key and the initial value as value"""
         self.localvars = None
+        """ This field is not populated by the parser but later by the VariableChecker.
+        It contains all local variables (including arguments) used in this function.
+        It is a dict with the variable's name as key and the type of the variable as value"""
+        self.localvartypes = None
         """ The return type of this function as string (e.g. "INT")"""
         self.returntype = returntype
         self.line = line
@@ -163,20 +177,24 @@ class FuncDef:
 class GlobalDef:
     """ The definiton of a global variable"""
 
-    def __init__(self, name, value, line):
+    def __init__(self, name, value, type, line):
         """ The name of the variable """
         self.name = name
         """ The initial value of the variable"""
         self.value = value
+        """ The type of the declared variable (INT, BOOL etc.) """
+        self.type = type
         self.line = line
 
 
 class LocalDef:
     """ The definiton of a local(inside of a function) variable"""
 
-    def __init__(self, name, value, line):
+    def __init__(self, name, value, type, line):
         """ The name of the variable """
         self.name = name
         """ The initial value of the variable"""
         self.value = value
+        """ The type of the declared variable (INT, BOOL etc.) """
+        self.type = type
         self.line = line

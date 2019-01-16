@@ -5,6 +5,13 @@ END
 
 FUNC othertest()
     INT x = 3
+    WHILE TRUE DO
+        print("%d\n",x)
+        x = x -1
+        IF x == 0 THEN
+            RETURN
+        END
+    END
     RETURN
 END
 

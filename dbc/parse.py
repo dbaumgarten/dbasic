@@ -107,6 +107,7 @@ def funcdef(t):
         raise ParserError(
             id.line, "Expected '(' in function definition")
     args = []
+    argtypes = []
     # parse an aribitary long list of comma seperated arguments until ')' or an unexpected token is encountered
     while True:
         argt = t.next()
@@ -115,6 +116,7 @@ def funcdef(t):
         if argt.type != "TYPE":
             raise ParserError(
                 argt.line, "Expected type-identifier in function declaration", argt)
+        argtypes.append(argt.value)
         arg = t.next()
         if arg.type != "ID":
             raise ParserError(
@@ -154,12 +156,15 @@ def funcdef(t):
             expectedend.line, "Expected newline after END of function block")
 
     # construct the funcdef AST-Node from functionname, arguments and body and return it
-    return ast.FuncDef(id.value, args, body, returntype, id.line)
+    return ast.FuncDef(id.value, args, argtypes, body, returntype, id.line)
 
 
 @LogParsing
 def globaldef(t):
-    """ parses a global variable definition """
+    """ parses a global variable definition 
+        A global variable definition is basically a local variable definition prepended with GLOBAL and outside of a function.
+        Therefore we can re-use the parsing of local variable definitions.
+    """
     tok = t.peek()
     if tok.type != "GLOBAL":
         return None
@@ -174,7 +179,7 @@ def globaldef(t):
         raise ParserError(
             tok.line, "Expected newline after END of variable definition")
 
-    return ast.GlobalDef(ldef.name, ldef.value, tok.line)
+    return ast.GlobalDef(ldef.name, ldef.value, ldef.type, tok.line)
 
 
 @LogParsing
@@ -183,7 +188,7 @@ def localdef(t):
     tok = t.peek()
     if tok.type != "TYPE":
         return None
-    t.next()
+    vartype = t.next()
     id = t.next()
     if id.type != "ID":
         raise ParserError(
@@ -194,7 +199,7 @@ def localdef(t):
     if not val:
         raise ParserError(
             id.line, "Missing expression for value of declared variable.")
-    return ast.LocalDef(id.value, val, tok.line)
+    return ast.LocalDef(id.value, val, vartype.value, tok.line)
 
 
 @LogParsing
@@ -478,7 +483,16 @@ def factor(t):
     # or a constant
     if tok.type == "CONST":
         t.next()
-        return ast.Const(tok.value, tok.line)
+        # treat the special const values TRUE and FALSE as 1 and 0
+        value = tok.value
+        vtype = "INT"
+        if value == "TRUE":
+            value = "1"
+            vtype = "BOOL"
+        if value == "FALSE":
+            value == "0"
+            vtype = "BOOL"
+        return ast.Const(value, vtype, tok.line)
     # or a bracketed expression
     elif tok.type == "(":
         t.next()

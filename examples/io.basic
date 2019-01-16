@@ -1,5 +1,10 @@
+FUNC myboolfunc() BOOL
+RETURN TRUE
+END
+
 FUNC main() INT
     INT x = input()
+    BOOL b = myboolfunc()
     print("%d\n",x)
     RETURN 0
 END

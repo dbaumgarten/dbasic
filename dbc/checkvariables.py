@@ -11,10 +11,14 @@ class VariableChecker(Visitor):
     """
 
     def __init__(self):
-        """ Contains all global variables declared in the programm. See ast.Programm"""
+        """ Contains all global variables declared in the programm and their default values. See ast.Programm"""
         self.globalvars = dict()
-        """ Contains all local variables of the function that is currently beeing analysed. Is ordered by declaratin-order. See ast.FuncDef"""
+        """ Contains all global variables declared in the programm and their types. See ast.Programm"""
+        self.globalvartypes = dict()
+        """ Contains all local variables and their default values of the function that is currently beeing analysed. Is ordered by declaratin-order. See ast.FuncDef"""
         self.localvars = OrderedDict()
+        """ Contains all local variables and their types of the function that is currently beeing analysed."""
+        self.localvartypes = OrderedDict()
         """ Contains all string constants declared in the programm. See ast.Programm"""
         self.constants = dict()
         """ Keep a counter of constants to generate unique labels for them"""
@@ -34,6 +38,7 @@ class VariableChecker(Visitor):
             self.visit(func)
         # annotate the progamm node with information about globals and constants
         node.globalvars = self.globalvars
+        node.globalvartypes = self.globalvartypes
         node.constants = self.constants
 
     def visitVar(self, node):
@@ -66,12 +71,15 @@ class VariableChecker(Visitor):
         # initialize the localvars dict do en empty dict()
         # all following visitLocaldef() calls will write their variables to this dict
         self.localvars = OrderedDict()
-        for arg in node.args:
+        self.localvartypes = OrderedDict()
+        for i, arg in enumerate(node.args):
             self.localvars[arg] = 0
+            self.localvartypes[arg] = node.argtypes[i]
         for statement in node.statements:
             self.visit(statement)
         # annotate the funcdef node wicth information about local variables
         node.localvars = self.localvars
+        node.localvartypes = self.localvartypes
         # this check does not really belong here as it is not variable relatet
         # but at the moment this is the only checker class and the check is to important to leave out
         if type(node.statements[-1]) != ast.Return:
@@ -87,11 +95,15 @@ class VariableChecker(Visitor):
         if type(node.value) != ast.Const:
             raise CheckError(
                 "Global variables can only be initialized using constants", node)
+        # enter the global variable and it's type in the globalvar list
         self.globalvars[node.name] = node.value.value
+        self.globalvartypes[node.name] = node.type
 
     def visitLocaldef(self, node):
         # make sure global variables are only declared once per function
         if node.name in self.globalvars:
             raise CheckError(
                 "Local variable {} has already been declared".format(node.name), node)
+        # enter the local variable and it's type in the localvar list forthe current function
         self.localvars[node.name] = node.value
+        self.localvartypes[node.name] = node.type

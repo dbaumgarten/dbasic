@@ -54,6 +54,8 @@ def main(args=None):
         try:
             # tokenize the input
             tokenizer = tokenize.Tokenizer(f.read())
+            if args.debug:
+                print(tokenizer.tokens)
             # parse tokens into AST
             syntaxtree = parse.parse(tokenizer)
             # annotate the tree with variable information and check for variable-relatet semantic errors

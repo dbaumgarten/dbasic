@@ -14,12 +14,13 @@ as '>' followed by '=' instead of a single '>='."""
 symbols = [">=", "<=", "!=", "==", ",", "(", ")", "+", "-", "*", "/", "==",
            "=", ">", "<", "&", "|"]
 
-"""These are all type-identifiers of the language. Currently all variables and functions are of type INT"""
-types = ["INT"]
+"""These are all type-identifiers of the language"""
+types = ["INT", "BOOL"]
 
 """Regexes to detect identifiers, numerical constants and strings"""
 idre = re.compile("^[a-zA-Z]+")
-constre = re.compile("^[0-9]+")
+# the strings TRUE and FALSE are also constants
+constre = re.compile("^[0-9]+|^TRUE|^FALSE")
 stringre = re.compile("^\"([^\"]*)\"", re.MULTILINE)
 
 
@@ -108,17 +109,17 @@ class Tokenizer:
                 continue
             # At this point we know it is neither a keyword, symbol or type.
 
-            # Is it a identifier (variable name, function name etc.)?
-            matcher = idre.match(text)
-            if matcher:
-                self.tokens.append(Token("ID", matcher.group(0), linenr))
-                text = text[len(matcher.group(0)):]
-                continue
-            # Is it an int constant (3,42,85748)?
+            # Is it a constant (3,42,85748)?
             matcher = constre.match(text)
             if matcher:
                 self.tokens.append(
                     Token("CONST", matcher.group(0), linenr))
+                text = text[len(matcher.group(0)):]
+                continue
+            # Is it a identifier (variable name, function name etc.)?
+            matcher = idre.match(text)
+            if matcher:
+                self.tokens.append(Token("ID", matcher.group(0), linenr))
                 text = text[len(matcher.group(0)):]
                 continue
             # Is it a string constant ("abc","geh")?

@@ -25,31 +25,46 @@ class TypeChecker(Visitor):
 
     def visitUnary(self, node):
         self.visit(node.val)
+        # currently there is only one unary operation and it can only be applied to INTs
+        if node.val.type != "INT":
+            raise CheckError(
+                "Unary operation '-' can only be performed on INTs and not on "+node.val.type, node)
         # unary operations inherit the type of their operand
         node.type = node.val.type
-        if node.type == None:
-            raise CheckError(
-                "Cannot perform unary operation on None-type", node)
 
     def visitBinary(self, node):
         self.visit(node.val1)
         self.visit(node.val2)
+        if node.op in ["+", "-", "*", "/"] and (node.val1.type != "INT" or node.val2.type != "INT"):
+            raise CheckError(
+                "Both operands of operations +-*/ must be of type INT", node)
+
         # operations can only be performed if both operands have the same type
         if node.val1.type != node.val1.type:
             raise CheckError(
                 "Both operands of a binary operation need to have the same type", node)
-        node.type = node.val1.type
-        if node.type == None:
+
+        # at this point it is guaranteed that val1 and val2 have the same type. If one of them is None also val1 is.
+        if node.val1 == None:
             raise CheckError(
                 "Cannot perform binary operation on None-type", node)
 
+        # comparisons always return BOOL. Everything else inherits the type of the operands
+        if node.op in ["==", "!=", ">=", "<=", "<", ">"]:
+            node.type = "BOOL"
+        else:
+            node.type = node.val1.type
+
     def visitVar(self, node):
-        # currently all variables have the type INT
-        node.type = "INT"
+        # get the type from the declaration of the variable
+        if node.name in self.currentfunc.localvartypes:
+            node.type = self.currentfunc.localvartypes[node.name]
+        else:
+            node.type = self.rootnode.globalvartypes[node.name]
 
     def visitConst(self, node):
-        # currently all variables have the type INT
-        node.type = "INT"
+        # consts are getting their type set by the parser. (Yes, this is a strange exception...)
+        pass
 
     def visitStr(self, node):
         # type for string-constants
@@ -65,7 +80,7 @@ class TypeChecker(Visitor):
         # can not return a value from a 'void' function (or void from an INT function)
         if node.type != self.currentfunc.returntype:
             raise CheckError(
-                "The type of the value to return must match the type of the function. Functype={}, Returntype={}".format(self.currentfunc.returntype, node.type), node)
+                "The type of the value to return ({}) must match the type of the function ({})".format(node.type, self.currentfunc.returntype), node)
 
     def visitFuncdef(self, node):
         self.currentfunc = node
@@ -74,22 +89,31 @@ class TypeChecker(Visitor):
 
     def visitAssign(self, node):
         self.visit(node.value)
-        # currently there is only INT or None as types. Stop them from assigning None to an INT-Var
-        if node.value.type == None:
+        # find the type of the variable. Could be a global or a local variable
+        if self.currentfunc != None and node.name in self.currentfunc.localvartypes:
+            vartype = self.currentfunc.localvartypes[node.name]
+        else:
+            vartype = self.rootnode.globalvartypes[node.name]
+        # make sure the assigned value has the same type as the variable
+        if node.value.type != vartype:
             raise CheckError(
-                "Cannot assign None-type value to an INT-Variable", node)
+                "Cannot assign {} type value to a {}-Variable".format(node.value.type, vartype), node)
 
     def visitLocaldef(self, node):
         self.visit(node.value)
-        if node.value.type == None:
-            raise CheckError(
-                "Cannot assign None-type value to an INT-Variable", node)
+        # a defintion is always also an assignment. pass it on.
+        self.visitAssign(node)
+
+    def visitGlobaldef(self, node):
+        self.visit(node.value)
+        # a defintion is always also an assignment. pass it on.
+        self.visitAssign(node)
 
     def visitIf(self, node):
         self.visit(node.exp)
-        if node.exp.type == None:
+        if node.exp.type != "BOOL":
             raise CheckError(
-                "Cannot use None-type expression as condition for an IF statement", node)
+                "IF condition has to return a BOOL. Instead found: "+node.exp.type, node)
         for statement in node.statements:
             self.visit(statement)
         if node.elsestatements:
@@ -99,16 +123,29 @@ class TypeChecker(Visitor):
 
     def visitWhile(self, node):
         self.visit(node.exp)
-        if node.exp.type == None:
+        if node.exp.type != "BOOL":
             raise CheckError(
-                "Cannot use None-type expression as condition for a WHILE statement", node)
+                "WHILE condition has to return a BOOL. Instead found: "+node.exp.type, node)
         for statement in node.statements:
             self.visit(statement)
 
     def visitCall(self, node):
         # special treatment for builtin functions
         if node.name == "input":
+            if len(node.args) > 0:
+                raise CheckError(
+                    "input() does not take any arguments", node)
             node.type = "INT"
+        elif node.name == "print":
+            if len(node.args) < 1:
+                raise CheckError(
+                    "print() needs at least one argument", node)
+            self.visit(node.args[0])
+            if node.args[0].type != "CONSTSTR":
+                raise CheckError(
+                    "First argument to print must be a string", node)
+            node.type = None
+        # every other function
         else:
             # find the definition of the function
             funcdef = None
@@ -126,9 +163,10 @@ class TypeChecker(Visitor):
             # the type of the call's resut is the return-type of the function
             node.type = funcdef.returntype
 
+        # TODO: Implement proper type-checking for function parameters
         for arg in node.args:
             self.visit(arg)
-            # we currently only have INT and None as types. Make sure we do not pass a None-type to a function
+            # Make sure we do not pass a None-type to a function
             if arg.type == None:
                 raise CheckError(
                     "Cannot use None-type as function argument", node)
