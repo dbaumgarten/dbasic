@@ -34,8 +34,19 @@ class VariableChecker(Visitor):
         for glob in node.globaldefs:
             self.visit(glob)
         # then analyse all defined functions
+        definedfunctions = set()
         for func in node.funcdefs:
             self.visit(func)
+            # can not have two functions with the same name
+            if func.name in definedfunctions:
+                raise CheckError(
+                    "Function {} has previously been defined.".format(func.name), func)
+            definedfunctions.add(func.name)
+
+        if not "main" in definedfunctions:
+            raise CheckError(
+                "Every programm needs to have a function called 'main'", None)
+
         # annotate the progamm node with information about globals and constants
         node.globalvars = self.globalvars
         node.globalvartypes = self.globalvartypes

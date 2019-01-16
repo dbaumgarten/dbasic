@@ -35,14 +35,15 @@ class TypeChecker(Visitor):
     def visitBinary(self, node):
         self.visit(node.val1)
         self.visit(node.val2)
-        if node.op in ["+", "-", "*", "/"] and (node.val1.type != "INT" or node.val2.type != "INT"):
-            raise CheckError(
-                "Both operands of operations +-*/ must be of type INT", node)
 
         # operations can only be performed if both operands have the same type
         if node.val1.type != node.val1.type:
             raise CheckError(
                 "Both operands of a binary operation need to have the same type", node)
+
+        if node.op in ["+", "-", "*", "/", ">=", "<=", ">", "<"] and (node.val1.type != "INT"):
+            raise CheckError(
+                "Both operands of operations +,-,*,/,>,<,>=,<= must be of type INT", node)
 
         # at this point it is guaranteed that val1 and val2 have the same type. If one of them is None also val1 is.
         if node.val1 == None:
@@ -86,6 +87,12 @@ class TypeChecker(Visitor):
         self.currentfunc = node
         for statement in node.statements:
             self.visit(statement)
+        if node.name == "main":
+            if node.returntype != "INT":
+                raise CheckError("Main-method must return INT", node)
+            if len(node.args) != 0:
+                raise CheckError(
+                    "Main-method does not take any arguments", node)
 
     def visitAssign(self, node):
         self.visit(node.value)
@@ -162,6 +169,10 @@ class TypeChecker(Visitor):
 
             # the type of the call's resut is the return-type of the function
             node.type = funcdef.returntype
+
+            if len(node.args) != len(funcdef.args):
+                raise CheckError("Function {} expects {} args. Found: {}".format(
+                    node.name, len(funcdef.args), len(node.args)), node)
 
             for i, arg in enumerate(node.args):
                 self.visit(arg)

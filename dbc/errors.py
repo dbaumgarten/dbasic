@@ -8,5 +8,5 @@ class CheckError(Exception):
         self.msg = msg
         self.node = node
         self.fullmessage = "Semantic error on line {}: {}".format(
-            node.line, msg)
+            node.line if node else 0, msg)
         super().__init__(self.fullmessage)
