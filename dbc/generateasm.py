@@ -1,19 +1,96 @@
 from textwrap import dedent
+from collections import Counter
 
 import dbc.ast as ast
 from dbc.visit import Visitor, VisitorError
+
+""" if this is true, the generated code contains debug-information about register-allocation"""
+debug = False
+
+
+class RegisterAllocator:
+    """ This class is responsible for register allocation. It tracks which registers are currently in use and offers methods to
+        request, use and return registers.
+        Register allocation should happen on a per-statement basis. This is less efficient but easyer to implement and produces more readable assembler code.
+        When a statement needs a register during code-generation the following steps must happen:
+        1. call choose() to get the name of a free register (or choose a register manually)
+        2. call allocate(reg).
+        3. generate the code for the expression that will use the register
+        3b. The expression will call mark_used(reg) once it fills the register with a value
+        4. the statement uses the value in the register (for whatever it needs to)
+        5. the statement calls free(reg)
+        !!! allocate() and free() may emit assembler instructions which have to be added to the output-code on the appropriate location!!!
+
+    """
+
+    def __init__(self):
+        """ list of possible x86-64 registers"""
+        self.registerlist = ["rax", "rbx", "rcx", "rdx",
+                             "rsi", "rdi"] + ["r"+str(i) for i in range(8, 16)]
+        """ registers to pass function-arguments in (ordered)"""
+        self.argorder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+        """ the set of registers currently in use """
+        self.inuse = set()
+        """ Keeps track which register has been saved to the stack how often """
+        self.borrowed = Counter()
+        """ All expressions should place their result in THIS register """
+        self.target = None
+
+    def allocate(self, reg):
+        """ Make the register reg available for use. If reg is already in use, it's value is saved to the stack.
+            Returns code that HAS TO be added to the statements code.
+            Also sets target to reg, so all following expressions will place the value in the newly allocated register.
+            DOES NOT mark a register as in-use.
+        """
+        self.target = reg
+        if reg in self.inuse:
+            # the register is already in use. Make it available by pushing it's content to the stack
+            self.borrowed[reg] += 1
+            self.inuse.remove(reg)
+            return "push %{}\n".format(reg) if not debug else "push %{}#borrowed\n".format(reg)
+        else:
+            return "" if not debug else "#prepared: "+reg+"\n"
+
+    def mark_used(self, reg):
+        """ Marks register reg as in-use"""
+        self.inuse.add(reg)
+
+    def free(self, reg):
+        """ Reg is not longer needed. In-use is set to false. If reg's contents were saved to the stack in prepare(), it is restored.
+            Returns code that HAS TO be added to the statements code.
+        """
+        borrowcount = self.borrowed[reg]
+        if borrowcount == 0:
+            # register is not longer needed
+            self.inuse.discard(reg)
+            return "" if not debug else "#unused: "+reg+"\n"
+        else:
+            # register value has been saved to the stack. restore it
+            self.borrowed[reg] = borrowcount - 1
+            self.inuse.add(reg)
+            return "pop %{}\n".format(reg) if not debug else "pop %{}#returned\n".format(reg)
+
+    def choose(self, exclude=[]):
+        """ returns a register. If a free register is available, it is returned. Otherwise some arbitary in-use register is returned.
+            Will never return a register that is listed in exlude.
+        """
+        for r in self.registerlist:
+            if r not in self.inuse:
+                return r
+        for r in self.registerlist:
+            if r not in exclude:
+                return r
+
+    def low(self, reg):
+        """ Returns the register-name for the low-byte of the given register"""
+        return reg.replace("r", "").replace("x", "") + "l"
 
 
 class ASMGenerator(Visitor):
     """ A code-generator that takes an annotated AST as input and outputs linux x86-64 assembly code.
     As all Generators this one extends Visitor to traverse the AST.
 
-    The generator generates relatively crude assembly but should be very easy to understand.
-    Register allocation is done in the most basic way possible:
-    - for the most of the operations only %rax is used. Binary operations also use %rcx
-    - Every expression leaves it's result in %rax
-    - no registers are used to permanently store any variables
-    - generated code for a node is independent of the nodes context (happends always the same way no matter what nodes are before or after it)
+    Generated code for a node is independent of the nodes context (happends always the same way no matter what nodes are before or after it)(excluding register allocation)
 
     The generated code (mostly) honors the SystemV x86-64 calling convention and can therefore interact with c-functions (like from glibc).
     """
@@ -21,8 +98,6 @@ class ASMGenerator(Visitor):
     def __init__(self):
         """ count the generated labels to always generate unique ones"""
         self.labelcounter = 0
-        """ The (ordered) registers in which arguments are passed to functions according to the SystemV 64 calling convention"""
-        self.argorder = ["RDI", "RSI", "RDX", "RCX", "R8", "R9"]
         """ constants of this programm. Obtained fromm annotated AST"""
         self.constants = None
         """ global variables of this programm. Obtained fromm annotated AST"""
@@ -31,13 +106,15 @@ class ASMGenerator(Visitor):
         self.localvars = None
         """ map from variable name to %ebp offset. Needed to locate local variables on the stack """
         self.localvaroffsets = dict()
+
+        self.regs = RegisterAllocator()
         super().__init__()
 
     def generate(self, node):
         """ Main generate method.
 
         :params node: The root node of the AST
-        returns: A string containing the generated assembler code 
+        returns: A string containing the generated assembler code
         """
         # obtain globals and constants from annotated AST
         self.constants = node.constants
@@ -51,7 +128,7 @@ class ASMGenerator(Visitor):
             .text
             .globl	main
             .type	main, @function
-        
+
 
         """)
         # generate code for all functions of the programm recursively
@@ -64,10 +141,16 @@ class ASMGenerator(Visitor):
         # start and fill the section containing global variables
         code += ".data\n"
         code += self.globalVariables(node)
+
+        # sanity check. if there are registers in-use after compilation, there is a bug in this code
+        if len(self.regs.inuse) != 0:
+            print("WARNING: Some registers still in use after completed compilation!")
+
         return code
 
     def visitFuncdef(self, node):
         # calculate %ebp offsets for all local variables and the total size of this functions stackframe
+        # assumes that all variables are 8 bytes long
         self.localvars = node.localvars
         for i, k in enumerate(self.localvars.keys()):
             self.localvaroffsets[k] = (i+1)*8
@@ -82,7 +165,7 @@ class ASMGenerator(Visitor):
         # move the arguments from the registers they were passed in to their local variable on the stack
         for i, arg in enumerate(node.args):
             code += "mov %{}, -{}(%rbp)\n".format(
-                self.argorder[i], self.localvaroffsets[arg])
+                self.regs.argorder[i], self.localvaroffsets[arg])
 
         # generate code for all statements of the functions
         for statement in node.statements:
@@ -91,110 +174,156 @@ class ASMGenerator(Visitor):
         return code+"\n\n"
 
     def visitCall(self, node):
+        target = self.regs.target
+        # take note of all registers that were in use at this point
+        callersaved = list(self.regs.inuse)
         code = ""
-        # the function call will use some registers to pass parameters
+
+        # allocate the parameter-registers and place parameters in them
         for i, arg in enumerate(node.args):
+            # save previous content of the register to the stack. Also the following expression will place it's result in self.regs.argorder[i]
+            code += self.regs.allocate(self.regs.argorder[i])
             # generate the code to compute the parameter
             code += self.visit(arg)
-            # save the old value of the register to the stack. Needed to not break nested function calls ( like f(f(f)) )
-            code += "push %{}\n".format(self.argorder[i])
-            # move the computed parameter value to the correct parameter-register
-            code += "mov %rax, %{}\n".format(self.argorder[i])
+            # mark the resgiter as in-use to save it from beeing overwritten
+            self.regs.mark_used(self.regs.argorder[i])
+
+        # save all in-use registers (except argument-registers) to the stack (caller-saved)
+        for reg in callersaved:
+            # allcate() will save the contants and mark the registers as free to use
+            code += self.regs.allocate(reg)
+
         # perform the function call
         code += "call {}\n".format(node.name)
-        # restore all registers that were saved to the stack before
+
+        # If the calls return value is needed and the target-register is not rax, move the result to the target register
+        if not node.isStatement and target != None:
+            self.regs.mark_used(target)
+            if target != "rax":
+                code += "mov %rax, %{}\n".format(target)
+
+        # restore the registers that were saved before call()
+        for reg in reversed(callersaved):
+            # free() will restore the contents saved by allocate()
+            code += self.regs.free(reg)
+
+        # free all argument-registers. Restores their values if they were in use before call()
         for i in range(len(node.args), 0, -1):
-            code += "pop %{}\n".format(self.argorder[i-1])
+            code += self.regs.free(self.regs.argorder[i-1])
+
         return code
 
     def visitBinary(self, exp):
-        code = ""
+        # store whoch register the parent-expression expects the result in
+        reg1 = self.regs.target
         # generate code to obtain value1 of the binary operator
-        code += self.visit(exp.val1)
-        # save the computed value to the stack, as the code generating value2 would otherwise overwrite it in %rax
-        code += "push %rax\n"
+        # will inherit self.regs.target, so the results of val1 will already be in the correct register
+        code = self.visit(exp.val1)
+        # choose and allocate a register for val2
+        reg2 = self.regs.choose(exclude=[reg1])
+        code += self.regs.allocate(reg2)
         # generate code to obtain value2 of the binary operator
+        # result will be in the previously allocated register
         code += self.visit(exp.val2)
-        # restore the saved value1 into %rcx
-        code += "pop %rcx\n"
+
         # generate the code to compute the waned result from value1 and value2
         if exp.op == "+":
-            code += "add %rcx, %rax\n"
+            code += "add %{1}, %{0}\n"
         elif exp.op == "-":
-            code += "sub %rax, %rcx\n"
-            code += "mov %rcx, %rax\n"
-        elif exp.op == "==":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "sete %al\n"
-        elif exp.op == "!=":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "setne %al\n"
+            code += "sub %{1}, %{0}\n"
         elif exp.op == "|":
-            code += "or %rcx, %rax\n"
+            code += "or %{1}, %{0}\n"
         elif exp.op == "&":
-            code += "and %rcx, %rax\n"
+            code += "and %{1}, %{0}\n"
         # the comparison operators need to use setXX because following statements will expect a value in %rax (0 if false, something else if true)
         # setting flags in the flag-register is not always enough
+        elif exp.op == "==":
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "sete %{2}\n"
+        elif exp.op == "!=":
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "setne %{2}\n"
         elif exp.op == "<":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "setl %al\n"
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "setl %{2}\n"
         elif exp.op == ">":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "setg %al\n"
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "setg %{2}\n"
         elif exp.op == "<=":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "setle %al\n"
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "setle %{2}\n"
         elif exp.op == ">=":
-            code += "cmp %rax, %rcx\n"
-            code += "mov $0, %rax\n"
-            code += "setge %al\n"
+            code += "cmp %{1}, %{0}\n"
+            code += "mov $0, %{0}\n"
+            code += "setge %{2}\n"
         else:
             raise VisitorError(
                 "Unsupported binary operation: "+exp.op)
+        # fill the chosen registers into the code-template
+        code = code.format(reg1, reg2, self.regs.low(reg1))
+        # free reg2, as it is not needed anymore
+        code += self.regs.free(reg2)
+
         return code
 
     def visitVar(self, node):
+        # mark the target-register as in-use, as it now contains a value
+        reg = self.regs.target
+        self.regs.mark_used(reg)
         # check if the value of a global or a local variable is needed
         if node.name in self.localvars:
             # local variables are located on the stack relative to %ebp
-            return "mov -{}(%rbp), %rax\n".format(self.localvaroffsets[node.name])
+            return "mov -{}(%rbp), %{}\n".format(self.localvaroffsets[node.name], reg)
         else:
             # global variables are referenced via an assembler label with their name
-            return "mov {}, %rax\n".format(node.name)
+            return "mov {}, %{}\n".format(node.name, reg)
 
     def visitConst(self, node):
+        # mark the target-register as in-use, as it now contains a value
+        reg = self.regs.target
+        self.regs.mark_used(reg)
         # constants are 'produced' by moving their value into %rax
-        return "mov ${}, %rax\n".format(node.value)
+        return "mov ${}, %{}\n".format(node.value, reg)
 
     def visitAssign(self, node):
-        # generate the code computing the value for the assignment
-        code = self.visit(node.value)
+        # choose and allocate a register
+        reg = self.regs.choose()
+        code = self.regs.allocate(reg)
+        # generate the code computing the value for the assignment. Result will be in reg
+        code += self.visit(node.value)
         # check if we assign to a global or local variable
         if node.name in self.localvars:
             # local variables are located on the stack relative to %ebp
-            code += "mov %rax, -{}(%rbp)\n".format(
-                self.localvaroffsets[node.name])
+            code += "mov %{}, -{}(%rbp)\n".format(reg,
+                                                  self.localvaroffsets[node.name])
         else:
              # global variables are referenced via an assembler label with their name
-            code += "mov %rax, {}\n".format(node.name)
+            code += "mov %{}, {}\n".format(reg, node.name)
+
+        # free reg
+        code += self.regs.free(reg)
         return code
 
     def visitIf(self, node):
-        code = ""
+        # choose and allocate a register for the condition-result
+        reg = self.regs.choose()
+        code = self.regs.allocate(reg)
         # generate labels to jump to
         endif = self.getlabel("endif")
         endelse = self.getlabel("endelse")
         # generate the code for the condition
         code += self.visit(node.exp)
+        # at this point the register is not longer needed
+        code += self.regs.free(reg)
         # the codition-expression will leave it's result in %rax
         # 0 means false, anything else means true
         # jump (skip the if block) if 0
-        code += "test %rax,%rax\n"
+        code += "test %{},%{}\n".format(reg, reg)
         code += "jz "+endif+"\n"
         # generate code for the if-block
         for statement in node.statements:
@@ -212,7 +341,10 @@ class ASMGenerator(Visitor):
         return code
 
     def visitWhile(self, node):
-        code = ""
+        # choose and allocate a register for the condition-result
+        reg = self.regs.choose()
+        code = self.regs.allocate(reg)
+        self.regs.target = reg
         # generate labels to jump to
         startlabel = self.getlabel("whilestart")
         endlabel = self.getlabel("whileend")
@@ -220,8 +352,10 @@ class ASMGenerator(Visitor):
         code += startlabel+":\n"
         # generate the code for the condition
         code += self.visit(node.exp)
+        # at this point the register is not longer needed
+        code += self.regs.free(reg)
         # if condition returned 0 via %rax, skip to endlabel
-        code += "test %rax,%rax\n"
+        code += "test %{},%{}\n".format(reg, reg)
         code += "jz "+endlabel+"\n"
         # generate code for block
         for statement in node.statements:
@@ -234,19 +368,25 @@ class ASMGenerator(Visitor):
 
     def visitReturn(self, node):
         code = ""
+        # allocate specifically rax (because function results are aleays returned via rax)
+        code += self.regs.allocate("rax")
         # calculate the value to return (if anything is returned)
         if node.expression:
             code += self.visit(node.expression)
+        # mark rax as available
+        self.regs.free("rax")
         # dealocate local variables with 'leave', return via 'ret'
         code += "leave\nret\n"
         return code
 
     def visitStr(self, node):
+        reg = self.regs.target
         # lookup the label for this string constant
         value = node.value
         label = self.constants[value]
+        self.regs.mark_used(reg)
         # place the address of the label into %rax (as result of this operation)
-        return "mov ${}, %rax\n".format(label)
+        return "mov ${}, %{}\n".format(label, reg)
 
     def visitGlobaldef(self, node):
         # nothing to do. all globals are already defined
