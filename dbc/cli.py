@@ -92,7 +92,7 @@ def main(args=None):
 
         if args.type == "binary":
             # if the user wants a binary we use gcc to assemble and link the generated assembly-code
-            cmds = ["gcc", "-o", args.outfile, "-xassembler", "-"]
+            cmds = ["gcc", "-o", args.outfile, "-xassembler", "-no-pie", "-"]
             if args.gccargs:
                 cmds = cmds + args.gccargs.split(" ")
             subprocess.run(cmds, input=code.encode())
